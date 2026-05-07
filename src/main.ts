@@ -1,6 +1,8 @@
 import './style.css'
 import { registerSW } from 'virtual:pwa-register'
 
+let deferredPrompt: any = null
+
 registerSW({ immediate: true })
 
 let cameraX = 0
@@ -478,6 +480,42 @@ function init(): void {
         cellSize = 8
         createGrid()
         draw()
+    })
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault()
+        deferredPrompt = e
+
+        if (!document.getElementById('install-btn')) {
+            const installBtn = document.createElement('button')
+            installBtn.id = 'install-btn'
+            installBtn.textContent = '📥 Installer'
+            Object.assign(installBtn.style, {
+                padding: '8px 16px',
+                background: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px'
+            })
+
+            installBtn.addEventListener('click', async () => {
+                if (!deferredPrompt) return
+                deferredPrompt.prompt()
+                const { outcome } = await deferredPrompt.userChoice
+                if (outcome === 'accepted') {
+                    installBtn.remove()
+                }
+                deferredPrompt = null
+            })
+
+            const controls = document.getElementById('controls')
+            if (controls) {
+                const status = document.getElementById('status')
+                controls.insertBefore(installBtn, status)
+            }
+        }
     })
 
     const status = document.createElement('span')
