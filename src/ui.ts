@@ -1,4 +1,6 @@
 import { PATTERNS } from "./constants";
+import { GameEngine } from "./engine";
+import { Renderer } from "./renderer";
 
 export class UI {
     app: HTMLDivElement;
@@ -7,6 +9,10 @@ export class UI {
     onToggleRunning: () => void;
     onReset: () => void;
     onSelectPattern: (pattern: number[][] | null) => void;
+    
+    private menuEngine?: GameEngine;
+    private menuRenderer?: Renderer;
+    private menuLoopId?: number;
 
     constructor(
         app: HTMLDivElement,
@@ -36,29 +42,56 @@ export class UI {
             zIndex: '100',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             alignItems: 'center',
             color: 'white',
-            gap: '20px'
+            maxHeight: '100%',
+            overflowY: 'auto',
+            padding: '40px 20px',
+            boxSizing: 'border-box'
         })
 
         const title = document.createElement('h1')
         title.textContent = 'Jeu de la Vie'
+        Object.assign(title.style, {
+            flexShrink: '0',
+            margin: '20px 0'
+        })
         overlay.appendChild(title)
 
         const rulesContainer = document.createElement('div')
+        rulesContainer.id = 'rules-container'
         Object.assign(rulesContainer.style, {
             maxWidth: '600px',
+            width: '100%',
             textAlign: 'center',
-            marginBottom: '20px',
             fontSize: '16px',
             lineHeight: '1.5',
             color: '#ccc',
             backgroundColor: 'rgba(255, 255, 255, 0.05)',
             padding: '20px',
             borderRadius: '12px',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            position: 'relative',
+            overflow: 'hidden',
+            flexShrink: '0',
+            boxSizing: 'border-box'
         })
+
+        const backgroundCanvas = document.createElement('canvas')
+        backgroundCanvas.id = 'rules-background-canvas'
+        Object.assign(backgroundCanvas.style, {
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            zIndex: '0', // Change from -1 to 0 to ensure it's visible relative to rulesContainer
+            opacity: '0.3',
+            pointerEvents: 'none',
+            objectFit: 'contain' // Prevent deformation
+        })
+        rulesContainer.appendChild(backgroundCanvas)
 
         const rulesTitle = document.createElement('h2')
         rulesTitle.textContent = 'Règles du jeu'
@@ -66,7 +99,9 @@ export class UI {
             fontSize: '20px',
             color: '#00ff88',
             marginTop: '0',
-            marginBottom: '10px'
+            marginBottom: '10px',
+            position: 'relative',
+            zIndex: '1'
         })
         rulesContainer.appendChild(rulesTitle)
 
@@ -77,7 +112,9 @@ export class UI {
             margin: '0',
             display: 'flex',
             flexDirection: 'column',
-            gap: '10px'
+            gap: '10px',
+            position: 'relative',
+            zIndex: '1'
         })
 
         const rules = [
@@ -100,14 +137,20 @@ export class UI {
         btnContainer.id = 'btn-container'
         Object.assign(btnContainer.style, {
             display: 'flex',
-            gap: '20px'
+            gap: '20px',
+            flexShrink: '0',
+            margin: '20px 0',
+            flexWrap: 'wrap',
+            justifyContent: 'center'
         })
 
         const autoBtn = this.createButton('Mode Automatique', '#007bff', () => {
+            this.stopMenuBackgroundSimulation()
             overlay.remove()
             this.onStartAuto()
         })
         const customBtn = this.createButton('Mode Personnalisé', '#28a745', () => {
+            this.stopMenuBackgroundSimulation()
             overlay.remove()
             this.onStartCustom()
         })
@@ -116,6 +159,63 @@ export class UI {
         btnContainer.appendChild(customBtn)
         overlay.appendChild(btnContainer)
         document.body.appendChild(overlay)
+
+        this.startMenuBackgroundSimulation(backgroundCanvas)
+    }
+
+    private startMenuBackgroundSimulation(canvas: HTMLCanvasElement): void {
+        const cellSize = 6
+        this.menuEngine = new GameEngine()
+        this.menuRenderer = new Renderer(canvas)
+        
+        const updateSize = () => {
+            const width = canvas.clientWidth
+            const height = canvas.clientHeight
+            if (width === 0 || height === 0) return
+
+            this.menuRenderer?.setSize(width, height)
+            if (this.menuEngine && (this.menuEngine.cols === 0 || this.menuEngine.rows === 0)) {
+                this.menuEngine.createGrid(width, height, cellSize, true)
+            } else {
+                this.menuEngine?.resize(width, height, cellSize, true)
+            }
+        }
+
+        // Initial size
+        updateSize()
+
+        // Handle resize of the container
+        const resizeObserver = new ResizeObserver(() => {
+            updateSize()
+        })
+        resizeObserver.observe(canvas.parentElement || canvas)
+        
+        let lastTick = 0
+        const tickInterval = 200 // Slightly slower for background
+
+        const loop = (timestamp: number) => {
+            if (!this.menuLoopId) {
+                resizeObserver.disconnect()
+                return;
+            }
+
+            if (timestamp - lastTick >= tickInterval) {
+                this.menuEngine?.nextGeneration()
+                this.menuRenderer?.draw(this.menuEngine!, cellSize, 0, 0)
+                lastTick = timestamp
+            }
+            this.menuLoopId = requestAnimationFrame(loop)
+        }
+        this.menuLoopId = requestAnimationFrame(loop)
+    }
+
+    private stopMenuBackgroundSimulation(): void {
+        if (this.menuLoopId) {
+            cancelAnimationFrame(this.menuLoopId)
+            this.menuLoopId = undefined
+        }
+        this.menuEngine = undefined
+        this.menuRenderer = undefined
     }
 
     private createButton(text: string, background: string, onClick: () => void): HTMLButtonElement {
