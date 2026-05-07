@@ -1,15 +1,11 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import removeLeadingSlash from "./src/plugins/removeLeadingSlash";
 
 export default defineConfig({
   base: './',
   plugins: [
-    {
-      name: 'remove-leading-dot-slash',
-      transformIndexHtml(html) {
-        return html.replace(/(href|src)="\.\//g, '$1="');
-      },
-    },
+    removeLeadingSlash(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg'],
