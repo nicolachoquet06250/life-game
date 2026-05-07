@@ -16,6 +16,7 @@ class App {
     appElement: HTMLDivElement;
     
     running = false;
+    isCustomMode = false;
     lastTick = 0;
     tickInterval = 1000 / TICK_RATE;
 
@@ -51,7 +52,13 @@ class App {
         this.ui.createControls();
         this.ui.createMenuOverlay();
 
+        this.appElement.id = 'app';
+
         window.addEventListener('resize', () => this.resize());
+        
+        const observer = new ResizeObserver(() => this.resize());
+        observer.observe(this.appElement);
+
         window.addEventListener('keydown', (e) => this.handleKeydown(e));
         
         // Context menu and other global listeners
@@ -69,14 +76,17 @@ class App {
 
     startAutoMode() {
         this.running = true;
+        this.isCustomMode = false;
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, true);
-        this.ui.updateRunningStatus(this.running);
+        this.ui.updateRunningStatus(this.running, this.isCustomMode);
+        this.ui.onSelectPattern(null);
         this.resize();
     }
 
     startCustomMode() {
         this.running = false;
-        this.ui.updateRunningStatus(this.running);
+        this.isCustomMode = true;
+        this.ui.updateRunningStatus(this.running, this.isCustomMode);
         this.ui.createSidebar();
         this.resize();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, false);
@@ -84,19 +94,20 @@ class App {
 
     toggleRunning() {
         this.running = !this.running;
-        this.ui.updateRunningStatus(this.running);
+        this.ui.updateRunningStatus(this.running, this.isCustomMode);
     }
 
     resetSimulation() {
         this.input.cameraX = 0;
         this.input.cameraY = 0;
         this.input.cellSize = 8;
-        const hasSidebar = !!document.getElementById('sidebar');
-        this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, !hasSidebar);
+        this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, !this.isCustomMode);
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
     }
 
     handleToggleCell(x: number, y: number) {
+        if (!this.isCustomMode) return;
+        
         if (this.input.selectedPattern) {
             this.engine.applyPattern(x, y, this.input.selectedPattern);
         } else {
@@ -115,8 +126,10 @@ class App {
     }
 
     resize() {
-        this.renderer.setSize(this.appElement.clientWidth, this.appElement.clientHeight);
-        this.engine.resize(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, this.running);
+        const width = this.appElement.clientWidth;
+        const height = this.appElement.clientHeight;
+        this.renderer.setSize(width, height);
+        this.engine.resize(width, height, this.input.cellSize, this.running);
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
     }
 

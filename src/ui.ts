@@ -101,6 +101,29 @@ export class UI {
             zIndex: '10'
         })
 
+        const switchBtn = document.createElement('button')
+        switchBtn.id = 'sidebar-switch'
+        switchBtn.textContent = 'Patterns'
+        Object.assign(switchBtn.style, {
+            padding: '8px 16px',
+            background: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            display: 'none'
+        })
+        switchBtn.onclick = () => {
+            const sidebar = document.getElementById('sidebar')
+            if (sidebar) {
+                sidebar.remove()
+                controls.classList.add('no-sidebar')
+            } else {
+                this.createSidebar()
+            }
+        }
+
         const pauseBtn = document.createElement('button')
         pauseBtn.id = 'pause-btn'
         pauseBtn.textContent = '▶ Play'
@@ -141,9 +164,11 @@ export class UI {
             minWidth: '60px'
         })
 
+        controls.appendChild(switchBtn)
         controls.appendChild(pauseBtn)
         controls.appendChild(resetBtn)
         controls.appendChild(status)
+        controls.classList.add('no-sidebar')
         this.app.appendChild(controls)
     }
 
@@ -180,31 +205,121 @@ export class UI {
     }
 
     createSidebar(): void {
+        const existing = document.getElementById('sidebar');
+        if (existing) return;
+
         const sidebar = document.createElement('div')
         sidebar.id = 'sidebar'
+        sidebar.classList.add('visible')
         Object.assign(sidebar.style, {
             position: 'fixed',
             right: '0',
             top: '0',
             bottom: '0',
-            width: '200px',
+            width: '240px',
             background: '#1a1a1a',
             borderLeft: '1px solid #333',
             color: 'white',
-            padding: '20px',
-            zIndex: '10',
-            overflowY: 'auto'
+            padding: '20px 0 20px 20px',
+            zIndex: '15',
+            overflowY: 'hidden'
         })
 
-        let currentSelectedPattern: number[][] | null = null;
+        const controls = document.getElementById('controls');
+        if (controls) {
+            controls.classList.remove('no-sidebar');
+        }
 
-        Object.entries(PATTERNS).forEach(([category, patterns]) => {
-            const categoryTitle = document.createElement('h3')
-            categoryTitle.textContent = category
-            if (category !== 'Vaisseaux') {
-                categoryTitle.style.marginTop = '20px'
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.id = 'sidebar-close';
+        Object.assign(closeBtn.style, {
+            position: 'absolute',
+            right: '10px',
+            top: '10px',
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            fontSize: '20px',
+            cursor: 'pointer',
+            padding: '5px'
+        });
+        closeBtn.onclick = () => {
+            sidebar.remove();
+            if (controls) {
+                controls.classList.add('no-sidebar');
             }
-            sidebar.appendChild(categoryTitle)
+        };
+        sidebar.appendChild(closeBtn);
+        
+        const sidebarTitle = document.createElement('h2');
+        sidebarTitle.textContent = 'Patterns';
+        Object.assign(sidebarTitle.style, {
+            margin: '0 0 15px 0',
+            fontSize: '18px',
+            color: '#00ff88'
+        });
+        sidebar.appendChild(sidebarTitle);
+
+        const tabsContainer = document.createElement('div');
+        tabsContainer.id = 'sidebar-tabs';
+        Object.assign(tabsContainer.style, {
+            display: 'flex',
+            overflowX: 'auto',
+            borderBottom: '1px solid #333',
+            marginBottom: '10px'
+        });
+
+        const contentContainer = document.createElement('div');
+        contentContainer.id = 'sidebar-content';
+        contentContainer.style.paddingRight = '20px';
+
+        sidebar.appendChild(tabsContainer);
+        sidebar.appendChild(contentContainer);
+
+        const instruction = document.createElement('p')
+        instruction.textContent = 'Cliquez sur un pattern puis sur la carte pour le placer.'
+        Object.assign(instruction.style, {
+            fontSize: '12px',
+            marginBottom: '10px',
+            color: '#aaa',
+            paddingRight: '20px'
+        })
+        sidebar.insertBefore(instruction, tabsContainer)
+
+        let currentSelectedPattern: number[][] | null = null;
+        let activeTab: HTMLElement | null = null;
+
+        Object.entries(PATTERNS).forEach(([category, patterns], index) => {
+            const tab = document.createElement('div');
+            tab.textContent = category;
+            tab.classList.add('tab');
+            Object.assign(tab.style, {
+                padding: '8px 12px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontSize: '14px',
+                borderBottom: '2px solid transparent'
+            });
+
+            const categoryContent = document.createElement('div');
+            categoryContent.style.display = 'none';
+
+            tab.onclick = () => {
+                if (activeTab) {
+                    activeTab.style.borderBottomColor = 'transparent';
+                    activeTab.style.background = 'transparent';
+                }
+                const contents = contentContainer.querySelectorAll(':scope > div');
+                contents.forEach(c => (c as HTMLElement).style.display = 'none');
+
+                categoryContent.style.display = 'block';
+                tab.style.borderBottomColor = '#00ff88';
+                tab.style.background = 'rgba(255, 255, 255, 0.05)';
+                activeTab = tab;
+            };
+
+            tabsContainer.appendChild(tab);
 
             Object.entries(patterns).forEach(([name, pattern]) => {
                 const item = document.createElement('div')
@@ -226,7 +341,7 @@ export class UI {
                     border: '2px solid transparent'
                 })
                 item.onclick = () => {
-                    const items = sidebar.querySelectorAll('#sidebar > div:not(h3)')
+                    const items = sidebar.querySelectorAll('.pattern-item')
                     items.forEach(i => (i as HTMLDivElement).style.borderColor = 'transparent')
                     
                     if (currentSelectedPattern === pattern) {
@@ -238,28 +353,32 @@ export class UI {
                         this.onSelectPattern(pattern)
                     }
                 }
-                sidebar.appendChild(item)
+                item.classList.add('pattern-item');
+                categoryContent.appendChild(item)
             })
+
+            contentContainer.appendChild(categoryContent);
+
+            // Activate first tab by default
+            if (index === 0) {
+                tab.click();
+            }
         })
 
-        const instruction = document.createElement('p')
-        instruction.textContent = 'Cliquez sur un pattern puis sur la carte pour le placer.'
-        Object.assign(instruction.style, {
-            fontSize: '12px',
-            marginTop: '20px',
-            color: '#aaa'
-        })
-        sidebar.appendChild(instruction)
-
-        document.body.appendChild(sidebar)
-        this.app.style.right = '200px'
+        document.body.insertBefore(sidebar, this.app)
     }
 
-    updateRunningStatus(running: boolean): void {
+    updateRunningStatus(running: boolean, isCustomMode: boolean = true): void {
         const pauseBtn = document.getElementById('pause-btn')
         if (pauseBtn) {
             pauseBtn.textContent = running ? '⏸ Pause' : '▶ Play'
         }
+        
+        const switchBtn = document.getElementById('sidebar-switch')
+        if (switchBtn) {
+            switchBtn.style.setProperty('display', isCustomMode ? 'block' : 'none', isCustomMode ? '' : 'important');
+        }
+
         const status = document.getElementById('status')
         if (status) {
             status.textContent = running ? '' : 'PAUSED'

@@ -1,8 +1,49 @@
 * {
   font-family: sans-serif;
+  box-sizing: border-box;
 }
 
-@media (max-width: 600px) {
+body, html {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #050505;
+  color: white;
+}
+
+#sidebar {
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+#sidebar-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#sidebar-tabs::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+#sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+#app {
+  transition: right 0.3s ease;
+}
+
+#sidebar:not(.hidden) + #app {
+  right: 240px;
+}
+
+@media (max-width: 768px) {
   #btn-container {
     flex-direction: column !important;
     width: 80% !important;
@@ -10,13 +51,46 @@
   #btn-container button {
     width: 100% !important;
   }
+  
   #sidebar {
-    display: none !important;
+    width: 100% !important;
+    height: 300px !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-left: none !important;
+    border-top: 1px solid #333 !important;
+    transform: translateY(0);
   }
+
+  #sidebar.hidden {
+    transform: translateY(100%);
+  }
+
+  #sidebar-switch {
+    display: none;
+  }
+
+  #sidebar-close {
+    display: block !important;
+  }
+
+  #app {
+    right: 0 !important;
+  }
+
   #controls {
-    bottom: 10px !important;
+    bottom: 320px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: auto !important;
     padding: 5px !important;
     gap: 5px !important;
+  }
+  
+  #controls.no-sidebar {
+    bottom: 20px !important;
   }
 }
 
