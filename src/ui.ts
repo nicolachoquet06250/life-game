@@ -1,0 +1,268 @@
+import { PATTERNS } from "./constants";
+
+export class UI {
+    app: HTMLDivElement;
+    onStartAuto: () => void;
+    onStartCustom: () => void;
+    onToggleRunning: () => void;
+    onReset: () => void;
+    onSelectPattern: (pattern: number[][] | null) => void;
+
+    constructor(
+        app: HTMLDivElement,
+        callbacks: {
+            onStartAuto: () => void,
+            onStartCustom: () => void,
+            onToggleRunning: () => void,
+            onReset: () => void,
+            onSelectPattern: (pattern: number[][] | null) => void
+        }
+    ) {
+        this.app = app;
+        this.onStartAuto = callbacks.onStartAuto;
+        this.onStartCustom = callbacks.onStartCustom;
+        this.onToggleRunning = callbacks.onToggleRunning;
+        this.onReset = callbacks.onReset;
+        this.onSelectPattern = callbacks.onSelectPattern;
+    }
+
+    createMenuOverlay(): void {
+        const overlay = document.createElement('div')
+        overlay.id = 'menu-overlay'
+        Object.assign(overlay.style, {
+            position: 'fixed',
+            inset: '0',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            zIndex: '100',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            color: 'white',
+            gap: '20px'
+        })
+
+        const title = document.createElement('h1')
+        title.textContent = 'Jeu de la Vie'
+        overlay.appendChild(title)
+
+        const btnContainer = document.createElement('div')
+        btnContainer.id = 'btn-container'
+        Object.assign(btnContainer.style, {
+            display: 'flex',
+            gap: '20px'
+        })
+
+        const autoBtn = this.createButton('Mode Automatique', '#007bff', () => {
+            overlay.remove()
+            this.onStartAuto()
+        })
+        const customBtn = this.createButton('Mode Personnalisé', '#28a745', () => {
+            overlay.remove()
+            this.onStartCustom()
+        })
+
+        btnContainer.appendChild(autoBtn)
+        btnContainer.appendChild(customBtn)
+        overlay.appendChild(btnContainer)
+        document.body.appendChild(overlay)
+    }
+
+    private createButton(text: string, background: string, onClick: () => void): HTMLButtonElement {
+        const btn = document.createElement('button')
+        btn.textContent = text
+        Object.assign(btn.style, {
+            padding: '15px 30px',
+            fontSize: '18px',
+            cursor: 'pointer',
+            background: background,
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px'
+        })
+        btn.onclick = onClick
+        return btn
+    }
+
+    createControls(): void {
+        const controls = document.createElement('div')
+        controls.id = 'controls'
+        Object.assign(controls.style, {
+            position: 'fixed',
+            bottom: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: '10px',
+            background: 'rgba(0, 0, 0, 0.5)',
+            padding: '10px',
+            borderRadius: '8px',
+            backdropFilter: 'blur(4px)',
+            zIndex: '10'
+        })
+
+        const pauseBtn = document.createElement('button')
+        pauseBtn.id = 'pause-btn'
+        pauseBtn.textContent = '▶ Play'
+        Object.assign(pauseBtn.style, {
+            padding: '8px 16px',
+            background: '#00ff88',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+        })
+        pauseBtn.addEventListener('click', this.onToggleRunning)
+
+        const resetBtn = document.createElement('button')
+        resetBtn.textContent = '⟲ Reset'
+        Object.assign(resetBtn.style, {
+            padding: '8px 16px',
+            background: '#444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px'
+        })
+        resetBtn.addEventListener('click', this.onReset)
+
+        const status = document.createElement('div')
+        status.id = 'status'
+        status.textContent = 'PAUSED'
+        Object.assign(status.style, {
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            padding: '0 10px',
+            minWidth: '60px'
+        })
+
+        controls.appendChild(pauseBtn)
+        controls.appendChild(resetBtn)
+        controls.appendChild(status)
+        this.app.appendChild(controls)
+    }
+
+    private createPatternPreview(pattern: number[][]): HTMLCanvasElement {
+        const canvas = document.createElement('canvas')
+        const cellSize = 4
+        const padding = 2
+        const rows = pattern.length
+        const cols = pattern[0].length
+        
+        canvas.width = cols * cellSize + padding * 2
+        canvas.height = rows * cellSize + padding * 2
+        
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+            ctx.fillStyle = '#00ff88'
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    if (pattern[y][x] === 1) {
+                        ctx.fillRect(x * cellSize + padding, y * cellSize + padding, cellSize - 1, cellSize - 1)
+                    }
+                }
+            }
+        }
+        
+        Object.assign(canvas.style, {
+            display: 'block',
+            margin: '0 auto 10px auto',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '2px'
+        })
+        
+        return canvas
+    }
+
+    createSidebar(): void {
+        const sidebar = document.createElement('div')
+        sidebar.id = 'sidebar'
+        Object.assign(sidebar.style, {
+            position: 'fixed',
+            right: '0',
+            top: '0',
+            bottom: '0',
+            width: '200px',
+            background: '#1a1a1a',
+            borderLeft: '1px solid #333',
+            color: 'white',
+            padding: '20px',
+            zIndex: '10',
+            overflowY: 'auto'
+        })
+
+        let currentSelectedPattern: number[][] | null = null;
+
+        Object.entries(PATTERNS).forEach(([category, patterns]) => {
+            const categoryTitle = document.createElement('h3')
+            categoryTitle.textContent = category
+            if (category !== 'Vaisseaux') {
+                categoryTitle.style.marginTop = '20px'
+            }
+            sidebar.appendChild(categoryTitle)
+
+            Object.entries(patterns).forEach(([name, pattern]) => {
+                const item = document.createElement('div')
+                
+                const preview = this.createPatternPreview(pattern)
+                item.appendChild(preview)
+
+                const nameEl = document.createElement('div')
+                nameEl.textContent = name
+                item.appendChild(nameEl)
+
+                Object.assign(item.style, {
+                    padding: '10px',
+                    margin: '5px 0',
+                    background: '#333',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    border: '2px solid transparent'
+                })
+                item.onclick = () => {
+                    const items = sidebar.querySelectorAll('#sidebar > div:not(h3)')
+                    items.forEach(i => (i as HTMLDivElement).style.borderColor = 'transparent')
+                    
+                    if (currentSelectedPattern === pattern) {
+                        currentSelectedPattern = null
+                        this.onSelectPattern(null)
+                    } else {
+                        currentSelectedPattern = pattern
+                        item.style.borderColor = '#00ff88'
+                        this.onSelectPattern(pattern)
+                    }
+                }
+                sidebar.appendChild(item)
+            })
+        })
+
+        const instruction = document.createElement('p')
+        instruction.textContent = 'Cliquez sur un pattern puis sur la carte pour le placer.'
+        Object.assign(instruction.style, {
+            fontSize: '12px',
+            marginTop: '20px',
+            color: '#aaa'
+        })
+        sidebar.appendChild(instruction)
+
+        document.body.appendChild(sidebar)
+        this.app.style.right = '200px'
+    }
+
+    updateRunningStatus(running: boolean): void {
+        const pauseBtn = document.getElementById('pause-btn')
+        if (pauseBtn) {
+            pauseBtn.textContent = running ? '⏸ Pause' : '▶ Play'
+        }
+        const status = document.getElementById('status')
+        if (status) {
+            status.textContent = running ? '' : 'PAUSED'
+        }
+    }
+}

@@ -1,3 +1,25 @@
+* {
+  font-family: sans-serif;
+}
+
+@media (max-width: 600px) {
+  #btn-container {
+    flex-direction: column !important;
+    width: 80% !important;
+  }
+  #btn-container button {
+    width: 100% !important;
+  }
+  #sidebar {
+    display: none !important;
+  }
+  #controls {
+    bottom: 10px !important;
+    padding: 5px !important;
+    gap: 5px !important;
+  }
+}
+
 .game-of-life {
   position: fixed;
   inset: 0;
