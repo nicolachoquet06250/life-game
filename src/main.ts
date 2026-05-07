@@ -4,7 +4,7 @@ import { GameEngine } from './engine'
 import { Renderer } from './renderer'
 import { UI } from './ui'
 import { InputHandler } from './input'
-import { TICK_RATE } from './constants'
+import { TICK_RATE, INITIAL_CELL_SIZE } from './constants'
 
 registerSW({ immediate: true })
 
@@ -18,6 +18,7 @@ class App {
     running = false;
     isCustomMode = false;
     lastTick = 0;
+    generation = 0;
     tickInterval = 1000 / TICK_RATE;
 
     constructor() {
@@ -38,6 +39,37 @@ class App {
             onSelectPattern: (p) => this.input.selectedPattern = p,
             onTickRateChange: (rate) => {
                 this.tickInterval = 1000 / rate;
+            },
+            onColorChange: (color) => {
+                this.renderer.aliveColor = color;
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            },
+            onGridToggle: (show) => {
+                this.renderer.showGrid = show;
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            },
+            onBlurChange: (blur) => {
+                this.renderer.motionBlur = blur;
+            },
+            onCellSizeChange: (size) => {
+                const oldSize = this.input.cellSize;
+                this.input.cellSize = size;
+                
+                // Adjust camera to keep center of the viewport fixed in "world" coordinates
+                const centerX = this.appElement.clientWidth / 2;
+                const centerY = this.appElement.clientHeight / 2;
+                
+                const worldCenterX = (centerX + this.input.cameraX) / oldSize;
+                const worldCenterY = (centerY + this.input.cameraY) / oldSize;
+                
+                this.input.cameraX = worldCenterX * size - centerX;
+                this.input.cameraY = worldCenterY * size - centerY;
+
+                this.checkAndExpandGrid();
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            },
+            onToricToggle: (isToric) => {
+                this.engine.isToric = isToric;
             }
         });
 
@@ -53,7 +85,7 @@ class App {
         // We don't initialize the grid here anymore, it's done when choosing the mode
 
         this.ui.createControls();
-        this.ui.createSettingsPanel(TICK_RATE);
+        this.ui.createSettingsPanel(TICK_RATE, INITIAL_CELL_SIZE);
         this.ui.createMenuOverlay();
 
         this.appElement.id = 'app';
@@ -104,14 +136,12 @@ class App {
     resetSimulation() {
         this.input.cameraX = 0;
         this.input.cameraY = 0;
-        this.input.cellSize = 8;
+        this.generation = 0;
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, !this.isCustomMode);
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
     }
 
     handleToggleCell(x: number, y: number) {
-        if (!this.isCustomMode) return;
-        
         if (this.input.selectedPattern) {
             this.engine.applyPattern(x, y, this.input.selectedPattern);
         } else {
@@ -133,7 +163,7 @@ class App {
         const width = this.appElement.clientWidth;
         const height = this.appElement.clientHeight;
         this.renderer.setSize(width, height);
-        this.engine.resize(width, height, this.input.cellSize, this.running);
+        this.checkAndExpandGrid();
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
     }
 
@@ -168,8 +198,19 @@ class App {
     loop(timestamp: number) {
         if (this.running && timestamp - this.lastTick >= this.tickInterval) {
             this.engine.nextGeneration();
+            this.generation++;
+            this.checkAndExpandGrid();
             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            
+            const stats = this.engine.getStats();
+            this.ui.updateStats(stats.population, this.generation, stats.density);
+            
             this.lastTick = timestamp;
+        } else if (!this.running) {
+             // In custom mode or paused, we still want to see the expand effects if we move
+             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+             const stats = this.engine.getStats();
+             this.ui.updateStats(stats.population, this.generation, stats.density);
         }
         requestAnimationFrame((t) => this.loop(t));
     }

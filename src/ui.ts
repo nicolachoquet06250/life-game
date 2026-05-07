@@ -10,10 +10,22 @@ export class UI {
     onReset: () => void;
     onSelectPattern: (pattern: number[][] | null) => void;
     onTickRateChange: (tickRate: number) => void;
+    onColorChange: (color: string) => void;
+    onGridToggle: (show: boolean) => void;
+    onBlurChange: (blur: number) => void;
+    onCellSizeChange: (size: number) => void;
+    onToricToggle: (isToric: boolean) => void;
     
     private menuEngine?: GameEngine;
     private menuRenderer?: Renderer;
     private menuLoopId?: number;
+    private currentTickRate: number = 12;
+    private initialCellSize: number = 8;
+    private currentCellSize: number = 8;
+    private currentColor: string = '#00ff88';
+    private currentBlur: number = 1.0;
+    private currentShowGrid: boolean = false;
+    private currentIsToric: boolean = true;
 
     constructor(
         app: HTMLDivElement,
@@ -23,7 +35,12 @@ export class UI {
             onToggleRunning: () => void,
             onReset: () => void,
             onSelectPattern: (pattern: number[][] | null) => void,
-            onTickRateChange: (tickRate: number) => void
+            onTickRateChange: (tickRate: number) => void,
+            onColorChange: (color: string) => void,
+            onGridToggle: (show: boolean) => void,
+            onBlurChange: (blur: number) => void,
+            onCellSizeChange: (size: number) => void,
+            onToricToggle: (isToric: boolean) => void
         }
     ) {
         this.app = app;
@@ -33,6 +50,11 @@ export class UI {
         this.onReset = callbacks.onReset;
         this.onSelectPattern = callbacks.onSelectPattern;
         this.onTickRateChange = callbacks.onTickRateChange;
+        this.onColorChange = callbacks.onColorChange;
+        this.onGridToggle = callbacks.onGridToggle;
+        this.onBlurChange = callbacks.onBlurChange;
+        this.onCellSizeChange = callbacks.onCellSizeChange;
+        this.onToricToggle = callbacks.onToricToggle;
     }
 
     createMenuOverlay(): void {
@@ -167,9 +189,12 @@ export class UI {
     }
 
     private startMenuBackgroundSimulation(canvas: HTMLCanvasElement): void {
-        const cellSize = 6
         this.menuEngine = new GameEngine()
+        this.menuEngine.isToric = this.currentIsToric;
         this.menuRenderer = new Renderer(canvas)
+        this.menuRenderer.aliveColor = this.currentColor;
+        this.menuRenderer.motionBlur = this.currentBlur;
+        this.menuRenderer.showGrid = this.currentShowGrid;
         
         const updateSize = () => {
             const width = canvas.clientWidth
@@ -178,9 +203,7 @@ export class UI {
 
             this.menuRenderer?.setSize(width, height)
             if (this.menuEngine && (this.menuEngine.cols === 0 || this.menuEngine.rows === 0)) {
-                this.menuEngine.createGrid(width, height, cellSize, true)
-            } else {
-                this.menuEngine?.resize(width, height, cellSize, true)
+                this.menuEngine.createGrid(width, height, this.currentCellSize, true)
             }
         }
 
@@ -194,7 +217,6 @@ export class UI {
         resizeObserver.observe(canvas.parentElement || canvas)
         
         let lastTick = 0
-        const tickInterval = 200 // Slightly slower for background
 
         const loop = (timestamp: number) => {
             if (!this.menuLoopId) {
@@ -202,9 +224,11 @@ export class UI {
                 return;
             }
 
+            const tickInterval = 1000 / this.currentTickRate;
+
             if (timestamp - lastTick >= tickInterval) {
                 this.menuEngine?.nextGeneration()
-                this.menuRenderer?.draw(this.menuEngine!, cellSize, 0, 0)
+                this.menuRenderer?.draw(this.menuEngine!, this.currentCellSize, 0, 0)
                 lastTick = timestamp
             }
             this.menuLoopId = requestAnimationFrame(loop)
@@ -543,14 +567,25 @@ export class UI {
         }
     }
 
-    createSettingsPanel(initialTickRate: number): void {
+    updateStats(population: number, generation: number, density: number): void {
+        const popEl = document.getElementById('stat-population');
+        const genEl = document.getElementById('stat-generation');
+        const denEl = document.getElementById('stat-density');
+        if (popEl) popEl.textContent = population.toString();
+        if (genEl) genEl.textContent = generation.toString();
+        if (denEl) denEl.textContent = density.toFixed(2) + '%';
+    }
+
+    createSettingsPanel(initialTickRate: number, initialCellSize: number): void {
+        this.initialCellSize = initialCellSize;
+        this.currentCellSize = initialCellSize;
         const panel = document.createElement('div');
         panel.id = 'settings-panel';
         Object.assign(panel.style, {
             position: 'fixed',
             bottom: '80px',
             right: '20px',
-            width: '200px',
+            width: '240px',
             backgroundColor: 'rgba(0, 0, 0, 0.85)',
             backdropFilter: 'blur(10px)',
             borderRadius: '12px',
@@ -564,7 +599,9 @@ export class UI {
             boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
             transition: 'opacity 0.3s ease, transform 0.3s ease',
             transform: 'translateY(10px)',
-            opacity: '0'
+            opacity: '0',
+            maxHeight: '80vh',
+            overflowY: 'auto'
         });
 
         const title = document.createElement('div');
@@ -579,39 +616,169 @@ export class UI {
         });
         panel.appendChild(title);
 
-        // Tick Rate Range
-        const rateContainer = document.createElement('div');
-        Object.assign(rateContainer.style, {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
+        // Stats Section
+        const statsContainer = document.createElement('div');
+        Object.assign(statsContainer.style, {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '5px',
+            fontSize: '11px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            padding: '10px',
+            borderRadius: '8px',
+            marginBottom: '5px'
         });
+        statsContainer.innerHTML = `
+            <div>Pop: <span id="stat-population" style="color: #00ff88">0</span></div>
+            <div>Gén: <span id="stat-generation" style="color: #00ff88">0</span></div>
+            <div style="grid-column: span 2">Densité: <span id="stat-density" style="color: #00ff88">0%</span></div>
+        `;
+        panel.appendChild(statsContainer);
 
-        const rateLabel = document.createElement('div');
-        rateLabel.innerHTML = `Vitesse: <span id="tick-rate-value">${initialTickRate}</span> gén/s`;
-        rateLabel.style.fontSize = '12px';
-        
-        const rateInput = document.createElement('input');
-        rateInput.type = 'range';
-        rateInput.min = '1';
-        rateInput.max = '60';
-        rateInput.value = initialTickRate.toString();
-        Object.assign(rateInput.style, {
-            width: '100%',
-            cursor: 'pointer',
-            accentColor: '#00ff88'
-        });
-
-        rateInput.oninput = (e) => {
-            const value = parseInt((e.target as HTMLInputElement).value);
-            const display = document.getElementById('tick-rate-value');
-            if (display) display.textContent = value.toString();
-            this.onTickRateChange(value);
+        const createRange = (label: string, min: number, max: number, value: number, unit: string, onInput: (v: number) => void) => {
+            const container = document.createElement('div');
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.gap = '5px';
+            
+            const labelEl = document.createElement('div');
+            labelEl.style.fontSize = '12px';
+            labelEl.innerHTML = `${label}: <span style="color: #00ff88">${value}</span> ${unit}`;
+            
+            const input = document.createElement('input');
+            input.type = 'range';
+            input.min = min.toString();
+            input.max = max.toString();
+            input.value = value.toString();
+            Object.assign(input.style, { width: '100%', cursor: 'pointer', accentColor: '#00ff88' });
+            
+            input.oninput = (e) => {
+                const val = parseFloat((e.target as HTMLInputElement).value);
+                labelEl.querySelector('span')!.textContent = val.toString();
+                onInput(val);
+            };
+            
+            container.appendChild(labelEl);
+            container.appendChild(input);
+            return container;
         };
 
-        rateContainer.appendChild(rateLabel);
-        rateContainer.appendChild(rateInput);
-        panel.appendChild(rateContainer);
+        const createToggle = (label: string, checked: boolean, onChange: (v: boolean) => void) => {
+            const container = document.createElement('label');
+            Object.assign(container.style, {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '12px',
+                cursor: 'pointer'
+            });
+            
+            const labelEl = document.createElement('span');
+            labelEl.textContent = label;
+            
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = checked;
+            input.style.accentColor = '#00ff88';
+            input.onchange = (e) => onChange((e.target as HTMLInputElement).checked);
+            
+            container.appendChild(labelEl);
+            container.appendChild(input);
+            return container;
+        };
+
+        // Apparence & Rendu
+        panel.appendChild(createRange('Vitesse', 1, 60, initialTickRate, 'gén/s', (v) => {
+            this.currentTickRate = v;
+            this.onTickRateChange(v);
+        }));
+        
+        // Zoom proportionnel (0.5x à 5x) basé sur INITIAL_CELL_SIZE
+        const zoomRange = createRange('Zoom', 50, 500, 100, '%', (v) => {
+            const factor = v / 100;
+            const newSize = Math.max(1, Math.round(this.initialCellSize * factor));
+            this.currentCellSize = newSize;
+            this.onCellSizeChange(newSize);
+        });
+        panel.appendChild(zoomRange);
+
+        panel.appendChild(createRange('Traînée', 0, 90, 0, '%', (v) => {
+            this.currentBlur = 1 - v/100;
+            if (this.menuRenderer) {
+                this.menuRenderer.motionBlur = this.currentBlur;
+            }
+            this.onBlurChange(this.currentBlur);
+        }));
+
+        // Color Picker
+        const colorContainer = document.createElement('div');
+        Object.assign(colorContainer.style, {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '12px'
+        });
+        
+        const colorLabel = document.createElement('span');
+        colorLabel.textContent = 'Couleur:';
+        
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.value = '#00ff88';
+        Object.assign(colorInput.style, {
+            border: 'none',
+            width: '24px',
+            height: '24px',
+            cursor: 'pointer',
+            background: 'none',
+            padding: '0',
+            webkitAppearance: 'none'
+        });
+
+        // Style for the color swatch to make it square
+        const style = document.createElement('style');
+        style.textContent = `
+            #settings-panel input[type="color"]::-webkit-color-swatch-wrapper {
+                padding: 0;
+            }
+            #settings-panel input[type="color"]::-webkit-color-swatch {
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 0;
+            }
+            #settings-panel input[type="color"]::-moz-color-swatch {
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 0;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        colorInput.oninput = (e) => {
+            const color = (e.target as HTMLInputElement).value;
+            this.currentColor = color;
+            if (this.menuRenderer) {
+                this.menuRenderer.aliveColor = color;
+            }
+            this.onColorChange(color);
+        };
+        
+        colorContainer.appendChild(colorLabel);
+        colorContainer.appendChild(colorInput);
+        panel.appendChild(colorContainer);
+
+        panel.appendChild(createToggle('Afficher la grille', false, (v) => {
+            this.currentShowGrid = v;
+            if (this.menuRenderer) {
+                this.menuRenderer.showGrid = v;
+            }
+            this.onGridToggle(v);
+        }));
+        panel.appendChild(createToggle('Mode Torique', true, (v) => {
+            this.currentIsToric = v;
+            if (this.menuEngine) {
+                this.menuEngine.isToric = v;
+            }
+            this.onToricToggle(v);
+        }));
 
         // Toggle Button
         const toggleBtn = document.createElement('button');
@@ -641,7 +808,6 @@ export class UI {
             isOpen = !isOpen;
             if (isOpen) {
                 panel.style.display = 'flex';
-                // Trigger reflow for transition
                 panel.offsetHeight;
                 panel.style.opacity = '1';
                 panel.style.transform = 'translateY(0)';
@@ -658,12 +824,16 @@ export class UI {
             }
         };
 
-        toggleBtn.onmouseenter = () => {
-            if (!isOpen) toggleBtn.style.borderColor = '#00ff88';
-        };
-        toggleBtn.onmouseleave = () => {
-            if (!isOpen) toggleBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-        };
+        toggleBtn.onmouseenter = () => { if (!isOpen) toggleBtn.style.borderColor = '#00ff88'; };
+        toggleBtn.onmouseleave = () => { if (!isOpen) toggleBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)'; };
+
+        // Close panel on outside click
+        window.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (isOpen && !panel.contains(target) && !toggleBtn.contains(target)) {
+                toggleBtn.click();
+            }
+        });
 
         document.body.appendChild(panel);
         document.body.appendChild(toggleBtn);

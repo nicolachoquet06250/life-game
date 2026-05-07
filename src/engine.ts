@@ -4,6 +4,8 @@ export class GameEngine {
     grid: Uint8Array = new Uint8Array()
     nextGrid: Uint8Array = new Uint8Array()
 
+    isToric: boolean = true
+
     index(x: number, y: number): number {
         return y * this.cols + x
     }
@@ -54,12 +56,29 @@ export class GameEngine {
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
                 if (dx === 0 && dy === 0) continue
-                const nx = (x + dx + this.cols) % this.cols
-                const ny = (y + dy + this.rows) % this.rows
+                let nx = x + dx
+                let ny = y + dy
+
+                if (this.isToric) {
+                    nx = (nx + this.cols) % this.cols
+                    ny = (ny + this.rows) % this.rows
+                } else {
+                    if (nx < 0 || nx >= this.cols || ny < 0 || ny >= this.rows) continue
+                }
+                
                 count += this.grid[this.index(nx, ny)]
             }
         }
         return count
+    }
+
+    getStats(): { population: number, density: number } {
+        let population = 0
+        for (let i = 0; i < this.grid.length; i++) {
+            if (this.grid[i] === 1) population++
+        }
+        const density = (population / this.grid.length) * 100
+        return { population, density }
     }
 
     nextGeneration(): void {
