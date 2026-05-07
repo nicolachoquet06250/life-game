@@ -1,4 +1,7 @@
 import './style.css'
+import { registerSW } from 'virtual:pwa-register'
+
+registerSW({ immediate: true })
 
 let cameraX = 0
 let cameraY = 0
