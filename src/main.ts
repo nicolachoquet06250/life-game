@@ -35,7 +35,10 @@ class App {
             onStartCustom: () => this.startCustomMode(),
             onToggleRunning: () => this.toggleRunning(),
             onReset: () => this.resetSimulation(),
-            onSelectPattern: (p) => this.input.selectedPattern = p
+            onSelectPattern: (p) => this.input.selectedPattern = p,
+            onTickRateChange: (rate) => {
+                this.tickInterval = 1000 / rate;
+            }
         });
 
         this.input = new InputHandler(canvas, this.engine, this.renderer, {
@@ -50,6 +53,7 @@ class App {
         // We don't initialize the grid here anymore, it's done when choosing the mode
 
         this.ui.createControls();
+        this.ui.createSettingsPanel(TICK_RATE);
         this.ui.createMenuOverlay();
 
         this.appElement.id = 'app';

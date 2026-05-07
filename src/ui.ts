@@ -9,6 +9,7 @@ export class UI {
     onToggleRunning: () => void;
     onReset: () => void;
     onSelectPattern: (pattern: number[][] | null) => void;
+    onTickRateChange: (tickRate: number) => void;
     
     private menuEngine?: GameEngine;
     private menuRenderer?: Renderer;
@@ -21,7 +22,8 @@ export class UI {
             onStartCustom: () => void,
             onToggleRunning: () => void,
             onReset: () => void,
-            onSelectPattern: (pattern: number[][] | null) => void
+            onSelectPattern: (pattern: number[][] | null) => void,
+            onTickRateChange: (tickRate: number) => void
         }
     ) {
         this.app = app;
@@ -30,6 +32,7 @@ export class UI {
         this.onToggleRunning = callbacks.onToggleRunning;
         this.onReset = callbacks.onReset;
         this.onSelectPattern = callbacks.onSelectPattern;
+        this.onTickRateChange = callbacks.onTickRateChange;
     }
 
     createMenuOverlay(): void {
@@ -529,9 +532,140 @@ export class UI {
             switchBtn.style.setProperty('display', isCustomMode ? 'block' : 'none', isCustomMode ? '' : 'important');
         }
 
+        const settingsToggle = document.getElementById('settings-toggle')
+        if (settingsToggle) {
+            settingsToggle.style.display = isCustomMode ? 'none' : 'flex';
+        }
+
         const status = document.getElementById('status')
         if (status) {
             status.textContent = running ? '' : 'PAUSED'
         }
+    }
+
+    createSettingsPanel(initialTickRate: number): void {
+        const panel = document.createElement('div');
+        panel.id = 'settings-panel';
+        Object.assign(panel.style, {
+            position: 'fixed',
+            bottom: '80px',
+            right: '20px',
+            width: '200px',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: '12px',
+            padding: '15px',
+            color: 'white',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            zIndex: '1000',
+            display: 'none',
+            flexDirection: 'column',
+            gap: '15px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+            transition: 'opacity 0.3s ease, transform 0.3s ease',
+            transform: 'translateY(10px)',
+            opacity: '0'
+        });
+
+        const title = document.createElement('div');
+        title.textContent = 'Paramètres';
+        Object.assign(title.style, {
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#00ff88',
+            marginBottom: '5px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            paddingBottom: '5px'
+        });
+        panel.appendChild(title);
+
+        // Tick Rate Range
+        const rateContainer = document.createElement('div');
+        Object.assign(rateContainer.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+        });
+
+        const rateLabel = document.createElement('div');
+        rateLabel.innerHTML = `Vitesse: <span id="tick-rate-value">${initialTickRate}</span> gén/s`;
+        rateLabel.style.fontSize = '12px';
+        
+        const rateInput = document.createElement('input');
+        rateInput.type = 'range';
+        rateInput.min = '1';
+        rateInput.max = '60';
+        rateInput.value = initialTickRate.toString();
+        Object.assign(rateInput.style, {
+            width: '100%',
+            cursor: 'pointer',
+            accentColor: '#00ff88'
+        });
+
+        rateInput.oninput = (e) => {
+            const value = parseInt((e.target as HTMLInputElement).value);
+            const display = document.getElementById('tick-rate-value');
+            if (display) display.textContent = value.toString();
+            this.onTickRateChange(value);
+        };
+
+        rateContainer.appendChild(rateLabel);
+        rateContainer.appendChild(rateInput);
+        panel.appendChild(rateContainer);
+
+        // Toggle Button
+        const toggleBtn = document.createElement('button');
+        toggleBtn.id = 'settings-toggle';
+        toggleBtn.innerHTML = '⚙️';
+        Object.assign(toggleBtn.style, {
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            width: '44px',
+            height: '44px',
+            borderRadius: '22px',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: '1001',
+            transition: 'all 0.2s ease'
+        });
+
+        let isOpen = false;
+        toggleBtn.onclick = () => {
+            isOpen = !isOpen;
+            if (isOpen) {
+                panel.style.display = 'flex';
+                // Trigger reflow for transition
+                panel.offsetHeight;
+                panel.style.opacity = '1';
+                panel.style.transform = 'translateY(0)';
+                toggleBtn.style.backgroundColor = '#00ff88';
+                toggleBtn.style.color = 'black';
+            } else {
+                panel.style.opacity = '0';
+                panel.style.transform = 'translateY(10px)';
+                toggleBtn.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                toggleBtn.style.color = 'white';
+                setTimeout(() => {
+                    if (!isOpen) panel.style.display = 'none';
+                }, 300);
+            }
+        };
+
+        toggleBtn.onmouseenter = () => {
+            if (!isOpen) toggleBtn.style.borderColor = '#00ff88';
+        };
+        toggleBtn.onmouseleave = () => {
+            if (!isOpen) toggleBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        };
+
+        document.body.appendChild(panel);
+        document.body.appendChild(toggleBtn);
     }
 }
