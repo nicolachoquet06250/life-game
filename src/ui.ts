@@ -46,6 +46,56 @@ export class UI {
         title.textContent = 'Jeu de la Vie'
         overlay.appendChild(title)
 
+        const rulesContainer = document.createElement('div')
+        Object.assign(rulesContainer.style, {
+            maxWidth: '600px',
+            textAlign: 'center',
+            marginBottom: '20px',
+            fontSize: '16px',
+            lineHeight: '1.5',
+            color: '#ccc',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            padding: '20px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+        })
+
+        const rulesTitle = document.createElement('h2')
+        rulesTitle.textContent = 'Règles du jeu'
+        Object.assign(rulesTitle.style, {
+            fontSize: '20px',
+            color: '#00ff88',
+            marginTop: '0',
+            marginBottom: '10px'
+        })
+        rulesContainer.appendChild(rulesTitle)
+
+        const rulesList = document.createElement('ul')
+        Object.assign(rulesList.style, {
+            listStyleType: 'none',
+            padding: '0',
+            margin: '0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+        })
+
+        const rules = [
+            'Une cellule vivante avec moins de deux voisins vivants meurt (sous-population).',
+            'Une cellule vivante avec deux ou trois voisins vivants survit.',
+            'Une cellule vivante avec plus de trois voisins vivants meurt (surpopulation).',
+            'Une cellule morte avec exactement trois voisins vivants devient vivante (reproduction).'
+        ]
+
+        rules.forEach(ruleText => {
+            const li = document.createElement('li')
+            li.textContent = ruleText
+            rulesList.appendChild(li)
+        })
+
+        rulesContainer.appendChild(rulesList)
+        overlay.appendChild(rulesContainer)
+
         const btnContainer = document.createElement('div')
         btnContainer.id = 'btn-container'
         Object.assign(btnContainer.style, {
