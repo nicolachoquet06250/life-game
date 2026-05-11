@@ -38,7 +38,12 @@ new class {
             onStartCustom: () => this.startCustomMode(),
             onToggleRunning: () => this.toggleRunning(),
             onReset: () => this.resetSimulation(),
-            onSelectPattern: (p) => this.input.selectedPattern = p,
+            onSelectPattern: (p) => {
+                this.input.selectedPattern = p;
+                if (p) {
+                    this.input.mouseMoved = false;
+                }
+            },
             onTickRateChange: (rate) => {
                 this.tickInterval = 1000 / rate;
             },
@@ -74,7 +79,10 @@ new class {
                 this.engine.isToric = isToric;
             },
             onExport: () => this.exportGrid(),
-            onImport: (json) => this.importGrid(json)
+            onImport: (json) => this.importGrid(json),
+            onRotatePattern: () => this.rotateSelectedPattern(),
+            onMirrorHorizontal: () => this.mirrorSelectedPatternHorizontal(),
+            onMirrorVertical: () => this.mirrorSelectedPatternVertical()
         });
 
         this.input = new InputHandler(canvas, this.engine, this.renderer, {
@@ -165,6 +173,8 @@ new class {
         this.status = 'Normal';
         if (this.input.selectedPattern) {
             this.engine.applyPattern(x, y, this.input.selectedPattern);
+            this.input.selectedPattern = null;
+            this.ui.onSelectPattern(null);
         } else {
             this.engine.toggleCell(x, y);
         }
@@ -176,7 +186,35 @@ new class {
             this.toggleRunning();
         }
         if (event.key.toLowerCase() === 'r') {
-            this.resetSimulation();
+            if (this.input.selectedPattern) {
+                this.rotateSelectedPattern();
+            } else {
+                this.resetSimulation();
+            }
+        }
+        if (event.key.toLowerCase() === 'h' && this.input.selectedPattern) {
+            this.mirrorSelectedPatternHorizontal();
+        }
+        if (event.key.toLowerCase() === 'v' && this.input.selectedPattern) {
+            this.mirrorSelectedPatternVertical();
+        }
+    }
+
+    rotateSelectedPattern() {
+        if (this.input.selectedPattern) {
+            this.input.selectedPattern = this.engine.rotatePattern(this.input.selectedPattern);
+        }
+    }
+
+    mirrorSelectedPatternHorizontal() {
+        if (this.input.selectedPattern) {
+            this.input.selectedPattern = this.engine.mirrorHorizontal(this.input.selectedPattern);
+        }
+    }
+
+    mirrorSelectedPatternVertical() {
+        if (this.input.selectedPattern) {
+            this.input.selectedPattern = this.engine.mirrorVertical(this.input.selectedPattern);
         }
     }
 
@@ -273,6 +311,27 @@ new class {
         } else if (!this.running) {
              // In custom mode or paused, we still want to see the expand effects if we move
              this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+             
+             if (this.input.selectedPattern) {
+                 let mouseX, mouseY;
+                 if (this.input.mouseMoved) {
+                     const rect = this.renderer.canvas.getBoundingClientRect();
+                     mouseX = this.input.lastMouseX - rect.left;
+                     mouseY = this.input.lastMouseY - rect.top;
+                 } else {
+                     // Center of the viewport (canvas)
+                     mouseX = this.renderer.canvas.width / 2;
+                     mouseY = this.renderer.canvas.height / 2;
+                     
+                     // Adjust to center the pattern itself
+                     const patternWidth = this.input.selectedPattern[0].length * this.input.cellSize;
+                     const patternHeight = this.input.selectedPattern.length * this.input.cellSize;
+                     mouseX -= patternWidth / 2;
+                     mouseY -= patternHeight / 2;
+                 }
+                 this.renderer.drawPatternPreview(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, mouseX, mouseY, this.input.selectedPattern);
+             }
+
              const stats = this.engine.getStats();
              this.ui.updateStats(stats.population, this.generation, stats.density, this.status);
         }

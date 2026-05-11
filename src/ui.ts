@@ -17,6 +17,9 @@ export class UI {
     onToricToggle: (isToric: boolean) => void;
     onExport: () => void;
     onImport: (json: string) => void;
+    onRotatePattern?: () => void;
+    onMirrorHorizontal?: () => void;
+    onMirrorVertical?: () => void;
     
     private menuEngine?: GameEngine;
     private menuRenderer?: Renderer;
@@ -46,7 +49,10 @@ export class UI {
             onCellSizeChange: (size: number) => void,
             onToricToggle: (isToric: boolean) => void,
             onExport: () => void,
-            onImport: (json: string) => void
+            onImport: (json: string) => void,
+            onRotatePattern?: () => void,
+            onMirrorHorizontal?: () => void,
+            onMirrorVertical?: () => void
         }
     ) {
         this.app = app;
@@ -63,6 +69,9 @@ export class UI {
         this.onToricToggle = callbacks.onToricToggle;
         this.onExport = callbacks.onExport;
         this.onImport = callbacks.onImport;
+        this.onRotatePattern = callbacks.onRotatePattern;
+        this.onMirrorHorizontal = callbacks.onMirrorHorizontal;
+        this.onMirrorVertical = callbacks.onMirrorVertical;
     }
 
     createMenuOverlay(): void {
@@ -446,6 +455,43 @@ export class UI {
         });
         sidebar.appendChild(sidebarTitle);
 
+        const transformContainer = document.createElement('div');
+        Object.assign(transformContainer.style, {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '5px',
+            marginBottom: '15px',
+            paddingRight: '20px'
+        });
+
+        const rotateBtn = document.createElement('button');
+        rotateBtn.innerHTML = '🔄';
+        rotateBtn.title = 'Pivoter (R)';
+        const mirrorHBtn = document.createElement('button');
+        mirrorHBtn.innerHTML = '↔️';
+        mirrorHBtn.title = 'Miroir H (H)';
+        const mirrorVBtn = document.createElement('button');
+        mirrorVBtn.innerHTML = '↕️';
+        mirrorVBtn.title = 'Miroir V (V)';
+
+        [rotateBtn, mirrorHBtn, mirrorVBtn].forEach(btn => {
+            Object.assign(btn.style, {
+                padding: '8px',
+                background: '#333',
+                border: '1px solid #444',
+                color: 'white',
+                borderRadius: '4px',
+                cursor: 'pointer'
+            });
+            transformContainer.appendChild(btn);
+        });
+
+        rotateBtn.onclick = () => this.onRotatePattern?.();
+        mirrorHBtn.onclick = () => this.onMirrorHorizontal?.();
+        mirrorVBtn.onclick = () => this.onMirrorVertical?.();
+
+        sidebar.appendChild(transformContainer);
+
         const tabsContainer = document.createElement('div');
         tabsContainer.id = 'sidebar-tabs';
         Object.assign(tabsContainer.style, {
@@ -536,6 +582,9 @@ export class UI {
                         currentSelectedPattern = pattern
                         item.style.borderColor = '#00ff88'
                         this.onSelectPattern(pattern)
+                        
+                        // Réinitialiser le flag de mouvement de la souris dans input
+                        // (On passe par le callback pour informer main.ts qui gère l'input)
                     }
                 })
                 item.classList.add('pattern-item');

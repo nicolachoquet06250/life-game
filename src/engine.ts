@@ -140,4 +140,25 @@ export class GameEngine {
         this.grid = new Uint8Array(data.grid)
         this.nextGrid = new Uint8Array(this.grid.length)
     }
+
+    rotatePattern(pattern: number[][]): number[][] {
+        const rows = pattern.length;
+        const cols = pattern[0].length;
+        const newPattern: number[][] = Array.from({ length: cols }, () => new Array(rows).fill(0));
+
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                newPattern[x][rows - 1 - y] = pattern[y][x];
+            }
+        }
+        return newPattern;
+    }
+
+    mirrorHorizontal(pattern: number[][]): number[][] {
+        return pattern.map(row => [...row].reverse());
+    }
+
+    mirrorVertical(pattern: number[][]): number[][] {
+        return [...pattern].reverse();
+    }
 }

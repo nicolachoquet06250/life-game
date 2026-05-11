@@ -13,8 +13,9 @@ export class InputHandler {
     isMouseDown = false;
     isPanning = false;
     hasMoved = false;
-    lastMouseX = 0;
-    lastMouseY = 0;
+    lastMouseX = -1;
+    lastMouseY = -1;
+    mouseMoved = false;
     lastToggledIndex = -1;
     lastTouchDistance = 0;
 
@@ -68,29 +69,30 @@ export class InputHandler {
     }
 
     private handleMouseMove(event: MouseEvent): void {
-        if (this.isMouseDown) {
-            const dx = event.clientX - this.lastMouseX;
-            const dy = event.clientY - this.lastMouseY;
+        const dx = event.clientX - this.lastMouseX;
+        const dy = event.clientY - this.lastMouseY;
 
+        if (this.lastMouseX !== -1 && (dx !== 0 || dy !== 0)) {
+            this.mouseMoved = true;
+        }
+        
+        if (this.isMouseDown) {
             if (Math.abs(dx) > 2 || Math.abs(dy) > 2 || this.isPanning) {
                 this.isPanning = true;
                 this.hasMoved = true;
                 this.cameraX -= dx;
                 this.cameraY -= dy;
-                this.lastMouseX = event.clientX;
-                this.lastMouseY = event.clientY;
                 this.canvas.style.cursor = 'grabbing';
                 this.onCameraChange();
             }
         } else if (this.isPanning) {
-            const dx = event.clientX - this.lastMouseX;
-            const dy = event.clientY - this.lastMouseY;
             this.cameraX -= dx;
             this.cameraY -= dy;
-            this.lastMouseX = event.clientX;
-            this.lastMouseY = event.clientY;
             this.onCameraChange();
         }
+
+        this.lastMouseX = event.clientX;
+        this.lastMouseY = event.clientY;
     }
 
     private handleMouseUp(event: MouseEvent): void {
@@ -135,6 +137,7 @@ export class InputHandler {
     }
 
     private handleTouchMove(event: TouchEvent): void {
+        this.mouseMoved = true;
         if (event.touches.length === 1 && this.isMouseDown) {
             const dx = event.touches[0].clientX - this.lastMouseX;
             const dy = event.touches[0].clientY - this.lastMouseY;

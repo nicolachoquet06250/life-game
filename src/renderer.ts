@@ -82,4 +82,29 @@ export class Renderer {
             }
         }
     }
+
+    drawPatternPreview(engine: GameEngine, cellSize: number, cameraX: number, cameraY: number, mouseX: number, mouseY: number, pattern: number[][]): void {
+        const worldX = Math.floor((mouseX + cameraX) / cellSize);
+        const worldY = Math.floor((mouseY + cameraY) / cellSize);
+
+        this.ctx.fillStyle = this.aliveColor;
+        this.ctx.globalAlpha = 0.5;
+
+        for (let py = 0; py < pattern.length; py++) {
+            for (let px = 0; px < pattern[py].length; px++) {
+                if (pattern[py][px] === 1) {
+                    const nx = (worldX + px + engine.cols) % engine.cols;
+                    const ny = (worldY + py + engine.rows) % engine.rows;
+
+                    this.ctx.fillRect(
+                        nx * cellSize - cameraX,
+                        ny * cellSize - cameraY,
+                        cellSize - 1,
+                        cellSize - 1
+                    );
+                }
+            }
+        }
+        this.ctx.globalAlpha = 1.0;
+    }
 }
