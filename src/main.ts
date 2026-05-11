@@ -38,11 +38,16 @@ new class {
             onStartCustom: () => this.startCustomMode(),
             onToggleRunning: () => this.toggleRunning(),
             onReset: () => this.resetSimulation(),
+            onNextStep: () => this.nextStep(),
+            onPreviousStep: () => this.previousStep(),
             onSelectPattern: (p) => {
                 this.input.selectedPattern = p;
                 if (p) {
                     this.input.mouseMoved = false;
                 }
+            },
+            onUpdateSelectedPattern: (p) => {
+                this.input.selectedPattern = p;
             },
             onTickRateChange: (rate) => {
                 this.tickInterval = 1000 / rate;
@@ -144,6 +149,7 @@ new class {
         this.ui.updateRunningStatus(this.running, this.isCustomMode);
         this.ui.onSelectPattern(null);
         this.resize();
+        this.updateNavigationUI();
     }
 
     startCustomMode() {
@@ -157,6 +163,7 @@ new class {
         this.ui.createSidebar();
         this.resize();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, false);
+        this.updateNavigationUI();
     }
 
     toggleRunning() {
@@ -166,6 +173,32 @@ new class {
         }
         this.running = !this.running;
         this.ui.updateRunningStatus(this.running, this.isCustomMode);
+        this.updateNavigationUI();
+    }
+
+    nextStep() {
+        if (this.running) {
+            return;
+        }
+        this.engine.nextGeneration();
+        this.generation++;
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+        const stats = this.engine.getStats();
+        this.ui.updateStats(stats.population, this.generation, stats.density, this.status);
+        this.updateNavigationUI();
+    }
+
+    previousStep() {
+        if (this.running) {
+            return;
+        }
+        if (this.engine.previousGeneration()) {
+            this.generation--;
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+            const stats = this.engine.getStats();
+            this.ui.updateStats(stats.population, this.generation, stats.density, this.status);
+        }
+        this.updateNavigationUI();
     }
 
     resetSimulation() {
@@ -175,8 +208,17 @@ new class {
         this.hashHistory = [];
         this.status = 'Normal';
         this.ui.resetStats();
+        this.engine.resetSimulation();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, !this.isCustomMode);
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+        this.updateNavigationUI();
+    }
+
+    private updateNavigationUI() {
+        this.ui.updateNavigationButtons(
+            !this.running && this.engine.history.length > 0,
+            !this.running && !this.engine.isStable()
+        );
     }
 
     handleToggleCell(x: number, y: number) {
@@ -184,17 +226,22 @@ new class {
         this.status = 'Normal';
         if (this.input.selectedPattern) {
             this.engine.applyPattern(x, y, this.input.selectedPattern);
-            this.input.selectedPattern = null;
-            this.ui.onSelectPattern(null);
         } else {
             this.engine.toggleCell(x, y);
         }
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+        this.updateNavigationUI();
     }
 
     handleKeydown(event: KeyboardEvent): void {
         if (event.code === 'Space') {
             this.toggleRunning();
+        }
+        if (event.key === 'ArrowRight') {
+            this.nextStep();
+        }
+        if (event.key === 'ArrowLeft') {
+            this.previousStep();
         }
         if (event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey)) {
             this.copySelection();
@@ -215,33 +262,79 @@ new class {
         if (event.key.toLowerCase() === 'r') {
             if (this.input.selectedPattern) {
                 this.rotateSelectedPattern();
+            } else if (this.getSelection()) {
+                this.rotateSelection();
             } else {
                 this.resetSimulation();
             }
         }
-        if (event.key.toLowerCase() === 'h' && this.input.selectedPattern) {
-            this.mirrorSelectedPatternHorizontal();
+        if (event.key.toLowerCase() === 'h') {
+            if (this.input.selectedPattern) {
+                this.mirrorSelectedPatternHorizontal();
+            } else if (this.getSelection()) {
+                this.mirrorSelectionHorizontal();
+            }
         }
-        if (event.key.toLowerCase() === 'v' && this.input.selectedPattern) {
-            this.mirrorSelectedPatternVertical();
+        if (event.key.toLowerCase() === 'v') {
+            if (this.input.selectedPattern) {
+                this.mirrorSelectedPatternVertical();
+            } else if (this.getSelection()) {
+                this.mirrorSelectionVertical();
+            }
         }
     }
 
     rotateSelectedPattern() {
         if (this.input.selectedPattern) {
             this.input.selectedPattern = this.engine.rotatePattern(this.input.selectedPattern);
+            this.ui.onUpdateSelectedPattern?.(this.input.selectedPattern);
         }
     }
 
     mirrorSelectedPatternHorizontal() {
         if (this.input.selectedPattern) {
             this.input.selectedPattern = this.engine.mirrorHorizontal(this.input.selectedPattern);
+            this.ui.onUpdateSelectedPattern?.(this.input.selectedPattern);
         }
     }
 
     mirrorSelectedPatternVertical() {
         if (this.input.selectedPattern) {
             this.input.selectedPattern = this.engine.mirrorVertical(this.input.selectedPattern);
+            this.ui.onUpdateSelectedPattern?.(this.input.selectedPattern);
+        }
+    }
+
+    rotateSelection() {
+        const selection = this.getSelection();
+        if (selection) {
+            const pattern = this.engine.copyPattern(selection.x1, selection.y1, selection.x2, selection.y2);
+            this.engine.clearArea(selection.x1, selection.y1, selection.x2, selection.y2, pattern);
+            const rotated = this.engine.rotatePattern(pattern);
+            this.engine.applyPattern(selection.x1, selection.y1, rotated, false);
+            this.input.selectionEnd.x = selection.x1 + rotated[0].length - 1;
+            this.input.selectionEnd.y = selection.y1 + rotated.length - 1;
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+        }
+    }
+
+    mirrorSelectionHorizontal() {
+        const selection = this.getSelection();
+        if (selection) {
+            const pattern = this.engine.copyPattern(selection.x1, selection.y1, selection.x2, selection.y2);
+            const mirrored = this.engine.mirrorHorizontal(pattern);
+            this.engine.applyPattern(selection.x1, selection.y1, mirrored, true);
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+        }
+    }
+
+    mirrorSelectionVertical() {
+        const selection = this.getSelection();
+        if (selection) {
+            const pattern = this.engine.copyPattern(selection.x1, selection.y1, selection.x2, selection.y2);
+            const mirrored = this.engine.mirrorVertical(pattern);
+            this.engine.applyPattern(selection.x1, selection.y1, mirrored, true);
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
         }
     }
 
@@ -361,6 +454,7 @@ new class {
         this.renderer.setSize(width, height);
         this.checkAndExpandGrid();
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+        this.updateNavigationUI();
     }
 
     checkAndExpandGrid() {
@@ -410,6 +504,7 @@ new class {
             this.status = 'Normal';
             this.ui.resetStats();
             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+            this.updateNavigationUI();
             console.log('Grille importée avec succès');
         } catch (e) {
             console.error('Erreur lors de l\'importation:', e);
@@ -439,8 +534,9 @@ new class {
             if (cycleIndex !== -1) {
                 const cycleLength = this.hashHistory.length - cycleIndex;
                 this.status = cycleLength === 1 ? 'Stable' : `Cycle (${cycleLength})`;
-                this.running = false;
-                this.ui.updateRunningStatus(this.running, this.isCustomMode);
+                // Don't stop simulation even if stable/cycle detected
+                // this.running = false;
+                // this.ui.updateRunningStatus(this.running, this.isCustomMode);
             } else {
                 this.hashHistory.push(currentHash);
                 if (this.hashHistory.length > 1000) {

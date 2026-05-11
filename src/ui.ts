@@ -8,7 +8,10 @@ export class UI {
     onStartCustom: () => void;
     onToggleRunning: () => void;
     onReset: () => void;
+    onNextStep: () => void;
+    onPreviousStep: () => void;
     onSelectPattern: (pattern: number[][] | null) => void;
+    onUpdateSelectedPattern?: (pattern: number[][] | null) => void;
     onTickRateChange: (tickRate: number) => void;
     onColorChange: (color: string) => void;
     onGridToggle: (show: boolean) => void;
@@ -39,6 +42,10 @@ export class UI {
     private currentIsToric: boolean = true;
     private populationHistory: number[] = [];
     private chartCanvas?: HTMLCanvasElement;
+    private prevBtn?: HTMLButtonElement;
+    private nextBtn?: HTMLButtonElement;
+    private selectionModeActive: boolean = false;
+    private selectedPattern: number[][] | null = null;
 
     constructor(
         app: HTMLDivElement,
@@ -47,7 +54,10 @@ export class UI {
             onStartCustom: () => void,
             onToggleRunning: () => void,
             onReset: () => void,
+            onNextStep: () => void,
+            onPreviousStep: () => void,
             onSelectPattern: (pattern: number[][] | null) => void,
+            onUpdateSelectedPattern?: (pattern: number[][] | null) => void,
             onTickRateChange: (tickRate: number) => void,
             onColorChange: (color: string) => void,
             onGridToggle: (show: boolean) => void,
@@ -72,7 +82,18 @@ export class UI {
         this.onStartCustom = callbacks.onStartCustom;
         this.onToggleRunning = callbacks.onToggleRunning;
         this.onReset = callbacks.onReset;
-        this.onSelectPattern = callbacks.onSelectPattern;
+        this.onNextStep = callbacks.onNextStep;
+        this.onPreviousStep = callbacks.onPreviousStep;
+        this.onSelectPattern = (p) => {
+            this.selectedPattern = p;
+            callbacks.onSelectPattern(p);
+        };
+        this.onUpdateSelectedPattern = (p) => {
+            this.selectedPattern = p;
+            if (callbacks.onUpdateSelectedPattern) {
+                callbacks.onUpdateSelectedPattern(p);
+            }
+        };
         this.onTickRateChange = callbacks.onTickRateChange;
         this.onColorChange = callbacks.onColorChange;
         this.onGridToggle = callbacks.onGridToggle;
@@ -302,29 +323,32 @@ export class UI {
         Object.assign(controls.style, {
             position: 'fixed',
             bottom: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
+            left: '20px',
             display: 'flex',
             gap: '10px',
             background: 'rgba(0, 0, 0, 0.5)',
             padding: '10px',
             borderRadius: '8px',
             backdropFilter: 'blur(4px)',
-            zIndex: '10'
+            zIndex: '10',
+            width: 'max-content',
+            maxWidth: '95vw',
+            alignItems: 'center'
         })
 
         const switchBtn = document.createElement('button')
         switchBtn.id = 'sidebar-switch'
-        switchBtn.textContent = 'Patterns'
+        switchBtn.textContent = '☰'
+        switchBtn.title = 'Patterns'
         Object.assign(switchBtn.style, {
-            padding: '8px 16px',
+            padding: '8px 12px',
             background: '#28a745',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontSize: '14px',
-            display: 'none'
+            fontSize: '16px',
+            display: 'block'
         })
         switchBtn.addEventListener('click', () => {
             const sidebar = document.getElementById('sidebar')
@@ -338,50 +362,83 @@ export class UI {
 
         const pauseBtn = document.createElement('button')
         pauseBtn.id = 'pause-btn'
-        pauseBtn.textContent = '▶ Play'
+        pauseBtn.textContent = '▶'
+        pauseBtn.title = 'Play / Pause'
         Object.assign(pauseBtn.style, {
-            padding: '8px 16px',
+            padding: '8px 12px',
             background: '#00ff88',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
             fontSize: '14px',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            minWidth: '40px'
         })
         pauseBtn.addEventListener('click', this.onToggleRunning)
 
-        const resetBtn = document.createElement('button')
-        resetBtn.textContent = '⟲ Reset'
-        Object.assign(resetBtn.style, {
-            padding: '8px 16px',
+        const prevBtn = document.createElement('button')
+        this.prevBtn = prevBtn
+        prevBtn.textContent = '⏮'
+        prevBtn.title = 'Previous Step'
+        Object.assign(prevBtn.style, {
+            padding: '8px 12px',
             background: '#444',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontSize: '14px'
+            fontSize: '14px',
+            transition: 'opacity 0.2s'
+        })
+        prevBtn.addEventListener('click', this.onPreviousStep)
+
+        const nextBtn = document.createElement('button')
+        this.nextBtn = nextBtn
+        nextBtn.textContent = '⏭'
+        nextBtn.title = 'Next Step'
+        Object.assign(nextBtn.style, {
+            padding: '8px 12px',
+            background: '#444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            transition: 'opacity 0.2s'
+        })
+        nextBtn.addEventListener('click', this.onNextStep)
+
+        const playbackGroup = document.createElement('div')
+        playbackGroup.id = 'playback-group'
+        Object.assign(playbackGroup.style, {
+            display: 'flex',
+            gap: '5px',
+            alignItems: 'center'
+        })
+        playbackGroup.appendChild(prevBtn)
+        playbackGroup.appendChild(pauseBtn)
+        playbackGroup.appendChild(nextBtn)
+
+        const resetBtn = document.createElement('button')
+        resetBtn.textContent = '⟲'
+        resetBtn.title = 'Reset'
+        Object.assign(resetBtn.style, {
+            padding: '8px 12px',
+            background: '#444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '16px'
         })
         resetBtn.addEventListener('click', this.onReset)
 
-        const status = document.createElement('div')
-        status.id = 'status'
-        status.textContent = 'PAUSED'
-        Object.assign(status.style, {
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            padding: '0 10px',
-            minWidth: '60px'
-        })
-
         controls.appendChild(switchBtn)
-        controls.appendChild(pauseBtn)
         controls.appendChild(resetBtn)
-        controls.appendChild(status)
+        controls.appendChild(playbackGroup)
+        
         controls.classList.add('no-sidebar')
-        this.app.appendChild(controls)
+        document.body.appendChild(controls)
     }
 
     private createPatternPreview(pattern: number[][]): HTMLCanvasElement {
@@ -493,7 +550,7 @@ export class UI {
         transformContainer.id = 'transform-container';
         Object.assign(transformContainer.style, {
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateColumns: 'repeat(3, 1fr)',
             gap: '5px',
             marginBottom: '10px',
             paddingRight: '20px'
@@ -527,7 +584,11 @@ export class UI {
         selectModeBtn.innerHTML = '🎯';
         selectModeBtn.title = 'Mode Sélection';
 
-        [rotateBtn, mirrorHBtn, mirrorVBtn, copyBtn, cutBtn, pasteBtn, duplicateBtn, selectModeBtn].forEach(btn => {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.title = 'Supprimer (Suppr)';
+
+        [rotateBtn, mirrorHBtn, mirrorVBtn, copyBtn, cutBtn, pasteBtn, duplicateBtn, selectModeBtn, deleteBtn].forEach(btn => {
             btn.classList.add('action-button');
             Object.assign(btn.style, {
                 padding: '8px',
@@ -540,20 +601,43 @@ export class UI {
             transformContainer.appendChild(btn);
         });
 
-        rotateBtn.onclick = () => this.onRotatePattern?.();
-        mirrorHBtn.onclick = () => this.onMirrorHorizontal?.();
-        mirrorVBtn.onclick = () => this.onMirrorVertical?.();
+        rotateBtn.onclick = () => {
+            if (this.selectedPattern && this.onRotatePattern) {
+                this.onRotatePattern();
+                // update local state if main.ts updated it (it should)
+            } else {
+                this.onRotatePattern?.();
+            }
+        };
+        mirrorHBtn.onclick = () => {
+            if (this.selectedPattern && this.onMirrorHorizontal) {
+                this.onMirrorHorizontal();
+            } else {
+                this.onMirrorHorizontal?.();
+            }
+        };
+        mirrorVBtn.onclick = () => {
+            if (this.selectedPattern && this.onMirrorVertical) {
+                this.onMirrorVertical();
+            } else {
+                this.onMirrorVertical?.();
+            }
+        };
         copyBtn.onclick = () => this.onCopy?.();
         cutBtn.onclick = () => this.onCut?.();
         pasteBtn.onclick = () => this.onPaste?.();
         duplicateBtn.onclick = () => this.onDuplicate?.();
+        deleteBtn.onclick = () => this.onDelete?.();
 
-        let isSelectionMode = false;
+        // Initial visual state for selection mode button based on persisted flag
+        selectModeBtn.style.background = this.selectionModeActive ? '#00ff88' : '#333';
+        selectModeBtn.style.color = this.selectionModeActive ? '#000' : '#fff';
+
         selectModeBtn.onclick = () => {
-            isSelectionMode = !isSelectionMode;
-            selectModeBtn.style.background = isSelectionMode ? '#00ff88' : '#333';
-            selectModeBtn.style.color = isSelectionMode ? '#000' : '#fff';
-            this.onSelectionModeToggle?.(isSelectionMode);
+            this.selectionModeActive = !this.selectionModeActive;
+            selectModeBtn.style.background = this.selectionModeActive ? '#00ff88' : '#333';
+            selectModeBtn.style.color = this.selectionModeActive ? '#000' : '#fff';
+            this.onSelectionModeToggle?.(this.selectionModeActive);
         };
 
         sidebar.appendChild(transformContainer);
@@ -584,7 +668,6 @@ export class UI {
         })
         sidebar.insertBefore(instruction, tabsContainer)
 
-        let currentSelectedPattern: number[][] | null = null;
         let activeTab: HTMLElement | null = null;
 
         Object.entries(PATTERNS).forEach(([category, patterns], index) => {
@@ -611,7 +694,11 @@ export class UI {
                 contents.forEach(c => (c as HTMLElement).style.setProperty('display', 'none', 'important'));
 
                 const isMobile = window.innerWidth <= 768;
-                categoryContent.style.setProperty('display', isMobile ? 'flex' : 'block', 'important');
+                categoryContent.style.setProperty('display', isMobile ? 'flex' : 'grid', 'important');
+                if (!isMobile) {
+                    categoryContent.style.gridTemplateColumns = 'repeat(2, 1fr)';
+                    categoryContent.style.gap = '10px';
+                }
                 tab.style.borderBottomColor = '#00ff88';
                 tab.style.background = 'rgba(255, 255, 255, 0.05)';
                 activeTab = tab;
@@ -630,6 +717,7 @@ export class UI {
                 nameEl.textContent = name
                 item.appendChild(nameEl)
 
+                const isSelected = this.selectedPattern === pattern || (this.selectedPattern && pattern && JSON.stringify(this.selectedPattern) === JSON.stringify(pattern));
                 Object.assign(item.style, {
                     padding: '10px',
                     margin: '5px 0',
@@ -637,22 +725,20 @@ export class UI {
                     borderRadius: '4px',
                     cursor: 'pointer',
                     textAlign: 'center',
-                    border: '2px solid transparent'
+                    border: `2px solid ${isSelected ? '#00ff88' : 'transparent'}`
                 })
                 item.addEventListener('click', () => {
                     const items = sidebar.querySelectorAll('.pattern-item')
-                    items.forEach(i => (i as HTMLDivElement).style.borderColor = 'transparent')
                     
-                    if (currentSelectedPattern === pattern) {
-                        currentSelectedPattern = null
+                    if (this.selectedPattern === pattern) {
+                        this.selectedPattern = null
                         this.onSelectPattern(null)
+                        items.forEach(i => (i as HTMLDivElement).style.borderColor = 'transparent')
                     } else {
-                        currentSelectedPattern = pattern
+                        this.selectedPattern = pattern
+                        items.forEach(i => (i as HTMLDivElement).style.borderColor = 'transparent')
                         item.style.borderColor = '#00ff88'
                         this.onSelectPattern(pattern)
-                        
-                        // Réinitialiser le flag de mouvement de la souris dans input
-                        // (On passe par le callback pour informer main.ts qui gère l'input)
                     }
                 })
                 item.classList.add('pattern-item');
@@ -675,10 +761,23 @@ export class UI {
         });
     }
 
+    updateNavigationButtons(canPrev: boolean, canNext: boolean): void {
+        if (this.prevBtn) {
+            this.prevBtn.disabled = !canPrev
+            this.prevBtn.style.opacity = canPrev ? '1' : '0.3'
+            this.prevBtn.style.cursor = canPrev ? 'pointer' : 'not-allowed'
+        }
+        if (this.nextBtn) {
+            this.nextBtn.disabled = !canNext
+            this.nextBtn.style.opacity = canNext ? '1' : '0.3'
+            this.nextBtn.style.cursor = canNext ? 'pointer' : 'not-allowed'
+        }
+    }
+
     updateRunningStatus(running: boolean, isCustomMode: boolean = true): void {
         const pauseBtn = document.getElementById('pause-btn')
         if (pauseBtn) {
-            pauseBtn.textContent = running ? '⏸ Pause' : '▶ Play'
+            pauseBtn.textContent = running ? '⏸' : '▶'
         }
         
         const switchBtn = document.getElementById('sidebar-switch')
@@ -689,11 +788,6 @@ export class UI {
         const settingsToggle = document.getElementById('settings-toggle')
         if (settingsToggle) {
             settingsToggle.style.display = 'flex';
-        }
-
-        const status = document.getElementById('status')
-        if (status) {
-            status.textContent = running ? '' : 'PAUSED'
         }
     }
 

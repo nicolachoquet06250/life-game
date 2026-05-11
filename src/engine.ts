@@ -3,6 +3,8 @@ export class GameEngine {
     rows: number = 0
     grid: Uint8Array = new Uint8Array()
     nextGrid: Uint8Array = new Uint8Array()
+    history: Uint8Array[] = []
+    maxHistory: number = 100
 
     isToric: boolean = true
 
@@ -19,6 +21,10 @@ export class GameEngine {
         this.nextGrid = new Uint8Array(size)
 
         return size;
+    }
+
+    resetSimulation() {
+        this.history = []
     }
 
     createGrid(width: number, height: number, cellSize: number, random: boolean = true): void {
@@ -61,20 +67,61 @@ export class GameEngine {
         return { population, density }
     }
 
-    nextGeneration(): void {
+    nextGeneration(): boolean {
+        this.saveToHistory()
+        let changed = false
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const i = this.index(x, y)
                 const alive = this.grid[i] === 1
                 const neighbors = this.countNeighbors(x, y)
-                this.nextGrid[i] = alive
+                const nextState = alive
                     ? neighbors === 2 || neighbors === 3 ? 1 : 0
                     : neighbors === 3 ? 1 : 0
+                if (nextState !== this.grid[i]) {
+                    changed = true
+                }
+                this.nextGrid[i] = nextState
             }
         }
         const tmp = this.grid
         this.grid = this.nextGrid
         this.nextGrid = tmp
+        return changed
+    }
+
+    isStable(): boolean {
+        for (let y = 0; y < this.rows; y++) {
+            for (let x = 0; x < this.cols; x++) {
+                const i = this.index(x, y)
+                const alive = this.grid[i] === 1
+                const neighbors = this.countNeighbors(x, y)
+                const nextState = alive
+                    ? neighbors === 2 || neighbors === 3 ? 1 : 0
+                    : neighbors === 3 ? 1 : 0
+                if (nextState !== this.grid[i]) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    saveToHistory(): void {
+        this.history.push(new Uint8Array(this.grid))
+        if (this.history.length > this.maxHistory) {
+            this.history.shift()
+        }
+    }
+
+    previousGeneration(): boolean {
+        const lastState = this.history.pop()
+        if (lastState) {
+            this.grid = lastState
+            this.nextGrid = new Uint8Array(this.grid.length)
+            return true
+        }
+        return false
     }
 
     expandGrid(addLeft: number, addRight: number, addTop: number, addBottom: number): void {
