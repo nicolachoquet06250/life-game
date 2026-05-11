@@ -257,7 +257,7 @@ export class UI {
             border: 'none',
             borderRadius: '8px'
         })
-        btn.onclick = onClick
+        btn.addEventListener('click', onClick);
         return btn
     }
 
@@ -291,7 +291,7 @@ export class UI {
             fontSize: '14px',
             display: 'none'
         })
-        switchBtn.onclick = () => {
+        switchBtn.addEventListener('click', () => {
             const sidebar = document.getElementById('sidebar')
             if (sidebar) {
                 sidebar.remove()
@@ -299,7 +299,7 @@ export class UI {
             } else {
                 this.createSidebar()
             }
-        }
+        });
 
         const pauseBtn = document.createElement('button')
         pauseBtn.id = 'pause-btn'
@@ -421,12 +421,12 @@ export class UI {
             cursor: 'pointer',
             padding: '5px'
         });
-        closeBtn.onclick = () => {
+        closeBtn.addEventListener('click', () => {
             sidebar.remove();
             if (controls) {
                 controls.classList.add('no-sidebar');
             }
-        };
+        });
         sidebar.appendChild(closeBtn);
         
         const sidebarTitle = document.createElement('h2');
@@ -482,7 +482,7 @@ export class UI {
             const categoryContent = document.createElement('div');
             categoryContent.style.display = 'none';
 
-            tab.onclick = () => {
+            tab.addEventListener('click', () => {
                 if (activeTab) {
                     activeTab.style.borderBottomColor = 'transparent';
                     activeTab.style.background = 'transparent';
@@ -494,7 +494,7 @@ export class UI {
                 tab.style.borderBottomColor = '#00ff88';
                 tab.style.background = 'rgba(255, 255, 255, 0.05)';
                 activeTab = tab;
-            };
+            });
 
             tabsContainer.appendChild(tab);
 
@@ -517,7 +517,7 @@ export class UI {
                     textAlign: 'center',
                     border: '2px solid transparent'
                 })
-                item.onclick = () => {
+                item.addEventListener('click', () => {
                     const items = sidebar.querySelectorAll('.pattern-item')
                     items.forEach(i => (i as HTMLDivElement).style.borderColor = 'transparent')
                     
@@ -529,7 +529,7 @@ export class UI {
                         item.style.borderColor = '#00ff88'
                         this.onSelectPattern(pattern)
                     }
-                }
+                })
                 item.classList.add('pattern-item');
                 categoryContent.appendChild(item)
             })
@@ -652,11 +652,11 @@ export class UI {
             input.value = value.toString();
             Object.assign(input.style, { width: '100%', cursor: 'pointer', accentColor: '#00ff88' });
             
-            input.oninput = (e) => {
+            input.addEventListener('input', (e) => {
                 const val = parseFloat((e.target as HTMLInputElement).value);
                 labelEl.querySelector('span')!.textContent = val.toString();
                 onInput(val);
-            };
+            });
             
             container.appendChild(labelEl);
             container.appendChild(input);
@@ -680,7 +680,7 @@ export class UI {
             input.type = 'checkbox';
             input.checked = checked;
             input.style.accentColor = '#00ff88';
-            input.onchange = (e) => onChange((e.target as HTMLInputElement).checked);
+            input.addEventListener('change', (e) => onChange((e.target as HTMLInputElement).checked));
             
             container.appendChild(labelEl);
             container.appendChild(input);
@@ -752,14 +752,14 @@ export class UI {
         `;
         document.head.appendChild(style);
         
-        colorInput.oninput = (e) => {
+        colorInput.addEventListener('input', (e) => {
             const color = (e.target as HTMLInputElement).value;
             this.currentColor = color;
             if (this.menuRenderer) {
                 this.menuRenderer.aliveColor = color;
             }
             this.onColorChange(color);
-        };
+        });
         
         colorContainer.appendChild(colorLabel);
         colorContainer.appendChild(colorInput);
@@ -804,7 +804,7 @@ export class UI {
         });
 
         let isOpen = false;
-        toggleBtn.onclick = () => {
+        toggleBtn.addEventListener('click', () => {
             isOpen = !isOpen;
             if (isOpen) {
                 panel.style.display = 'flex';
@@ -822,10 +822,10 @@ export class UI {
                     if (!isOpen) panel.style.display = 'none';
                 }, 300);
             }
-        };
+        });
 
-        toggleBtn.onmouseenter = () => { if (!isOpen) toggleBtn.style.borderColor = '#00ff88'; };
-        toggleBtn.onmouseleave = () => { if (!isOpen) toggleBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)'; };
+        toggleBtn.addEventListener('mouseenter', () => { if (!isOpen) toggleBtn.style.borderColor = '#00ff88'; });
+        toggleBtn.addEventListener('mouseleave', () => { if (!isOpen) toggleBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)'; });
 
         // Close panel on outside click
         window.addEventListener('click', (e) => {
