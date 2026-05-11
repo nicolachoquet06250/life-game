@@ -34,7 +34,7 @@ export class Renderer {
         this.canvas.height = height;
     }
 
-    draw(engine: GameEngine, cellSize: number, cameraX: number, cameraY: number): void {
+    draw(engine: GameEngine, cellSize: number, cameraX: number, cameraY: number, selection?: {start: {x: number, y: number}, end: {x: number, y: number}, offset?: {x: number, y: number}}): void {
         if (this.motionBlur >= 1.0) {
             this.ctx.fillStyle = this.theme.dead;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -67,19 +67,63 @@ export class Renderer {
             this.ctx.stroke();
         }
 
-        this.ctx.fillStyle = this.aliveColor
+        const selXMin = selection ? Math.min(selection.start.x, selection.end.x) : -1;
+        const selXMax = selection ? Math.max(selection.start.x, selection.end.x) : -1;
+        const selYMin = selection ? Math.min(selection.start.y, selection.end.y) : -1;
+        const selYMax = selection ? Math.max(selection.start.y, selection.end.y) : -1;
+        
+        const offsetX = (selection && selection.offset) ? selection.offset.x : 0;
+        const offsetY = (selection && selection.offset) ? selection.offset.y : 0;
 
         for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
-                if (engine.grid[engine.index(x, y)] === 0) continue
+                const isAlive = engine.grid[engine.index(x, y)] === 1;
+                const isInSelection = selection && x >= selXMin && x <= selXMax && y >= selYMin && y <= selYMax;
+                
+                // Si la cellule est dans la sélection et qu'on est en train de déplacer (offset != 0),
+                // on ne dessine rien ici (on dessinera la version déplacée après)
+                if (isInSelection && (offsetX !== 0 || offsetY !== 0)) {
+                    continue;
+                }
 
-                this.ctx.fillRect(
-                    x * cellSize - cameraX,
-                    y * cellSize - cameraY,
-                    cellSize - 1,
-                    cellSize - 1
-                )
+                if (isAlive) {
+                    if (isInSelection) {
+                        // On applique une légère transparence pour les cellules sélectionnées
+                        this.ctx.globalAlpha = 0.7;
+                        this.ctx.fillStyle = this.aliveColor;
+                    } else {
+                        this.ctx.fillStyle = this.aliveColor;
+                    }
+
+                    this.ctx.fillRect(
+                        x * cellSize - cameraX,
+                        y * cellSize - cameraY,
+                        cellSize - 1,
+                        cellSize - 1
+                    );
+
+                    this.ctx.globalAlpha = 1.0;
+                }
             }
+        }
+
+        // Dessiner la sélection déplacée (preview) si offset présent
+        if (selection && (offsetX !== 0 || offsetY !== 0)) {
+            this.ctx.fillStyle = this.aliveColor;
+            this.ctx.globalAlpha = 0.5;
+            for (let y = selYMin; y <= selYMax; y++) {
+                for (let x = selXMin; x <= selXMax; x++) {
+                    if (engine.grid[engine.index(x, y)] === 1) {
+                        this.ctx.fillRect(
+                            (x + offsetX) * cellSize - cameraX,
+                            (y + offsetY) * cellSize - cameraY,
+                            cellSize - 1,
+                            cellSize - 1
+                        );
+                    }
+                }
+            }
+            this.ctx.globalAlpha = 1.0;
         }
     }
 
@@ -106,5 +150,21 @@ export class Renderer {
             }
         }
         this.ctx.globalAlpha = 1.0;
+    }
+
+    drawSelection(cellSize: number, cameraX: number, cameraY: number, start: {x: number, y: number}, end: {x: number, y: number}, offset?: {x: number, y: number}): void {
+        const dx = offset ? offset.x : 0;
+        const dy = offset ? offset.y : 0;
+
+        const x1 = (Math.min(start.x, end.x) + dx) * cellSize - cameraX;
+        const y1 = (Math.min(start.y, end.y) + dy) * cellSize - cameraY;
+        const x2 = (Math.max(start.x, end.x) + dx + 1) * cellSize - cameraX;
+        const y2 = (Math.max(start.y, end.y) + dy + 1) * cellSize - cameraY;
+
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([5, 5]);
+        this.ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        this.ctx.setLineDash([]);
     }
 }

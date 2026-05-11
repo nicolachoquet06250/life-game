@@ -12,6 +12,12 @@ export class InputHandler {
 
     isMouseDown = false;
     isPanning = false;
+    isSelecting = false;
+    isDraggingSelection = false;
+    dragStart = { x: 0, y: 0 };
+    dragOffset = { x: 0, y: 0 };
+    selectionStart = { x: 0, y: 0 };
+    selectionEnd = { x: 0, y: 0 };
     hasMoved = false;
     lastMouseX = -1;
     lastMouseY = -1;
@@ -20,9 +26,17 @@ export class InputHandler {
     lastTouchDistance = 0;
 
     selectedPattern: number[][] | null = null;
+    clipboard: number[][] | null = null;
 
     onCameraChange: () => void;
     onToggleCell: (x: number, y: number) => void;
+    onSelectionComplete?: (start: {x: number, y: number}, end: {x: number, y: number}) => void;
+    onDragSelection?: (dx: number, dy: number, isFinished: boolean) => void;
+    onDelete?: () => void;
+
+    private _isSelectionMode = false;
+    public get isSelectionMode() { return this._isSelectionMode; }
+    public set isSelectionMode(value: boolean) { this._isSelectionMode = value; }
 
     constructor(
         canvas: HTMLCanvasElement,
@@ -30,7 +44,8 @@ export class InputHandler {
         renderer: Renderer,
         callbacks: {
             onCameraChange: () => void,
-            onToggleCell: (x: number, y: number) => void
+            onToggleCell: (x: number, y: number) => void,
+            onDelete?: () => void
         }
     ) {
         this.canvas = canvas;
@@ -38,6 +53,9 @@ export class InputHandler {
         this.renderer = renderer;
         this.onCameraChange = callbacks.onCameraChange;
         this.onToggleCell = callbacks.onToggleCell;
+        this.onSelectionComplete = (callbacks as any).onSelectionComplete;
+        this.onDragSelection = (callbacks as any).onDragSelection;
+        this.onDelete = (callbacks as any).onDelete;
 
         this.initListeners();
     }
@@ -56,8 +74,23 @@ export class InputHandler {
 
     private handleMouseDown(event: MouseEvent): void {
         if (event.button === 0) {
-            this.isMouseDown = true;
-            this.hasMoved = false;
+            const rect = this.canvas.getBoundingClientRect();
+            const x = Math.floor((event.clientX - rect.left + this.cameraX) / this.cellSize);
+            const y = Math.floor((event.clientY - rect.top + this.cameraY) / this.cellSize);
+
+            if (event.shiftKey) {
+                this.isSelecting = true;
+                this.selectionStart = { x, y };
+                this.selectionEnd = { x, y };
+            } else if (this.isPointInSelection(x, y)) {
+                this.isDraggingSelection = true;
+                this.dragStart = { x, y };
+                this.hasMoved = false;
+                this.canvas.style.cursor = 'move';
+            } else {
+                this.isMouseDown = true;
+                this.hasMoved = false;
+            }
             this.lastMouseX = event.clientX;
             this.lastMouseY = event.clientY;
         } else if (event.button === 2 || event.button === 1) {
@@ -76,7 +109,22 @@ export class InputHandler {
             this.mouseMoved = true;
         }
         
-        if (this.isMouseDown) {
+        const rect = this.canvas.getBoundingClientRect();
+        const worldX = Math.floor((event.clientX - rect.left + this.cameraX) / this.cellSize);
+        const worldY = Math.floor((event.clientY - rect.top + this.cameraY) / this.cellSize);
+
+        if (this.isDraggingSelection) {
+            const worldDx = worldX - this.dragStart.x;
+            const worldDy = worldY - this.dragStart.y;
+            
+            if (worldDx !== 0 || worldDy !== 0) {
+                this.hasMoved = true;
+                this.dragOffset.x += worldDx;
+                this.dragOffset.y += worldDy;
+                this.onDragSelection?.(this.dragOffset.x, this.dragOffset.y, false);
+                this.dragStart = { x: worldX, y: worldY };
+            }
+        } else if (this.isMouseDown) {
             if (Math.abs(dx) > 2 || Math.abs(dy) > 2 || this.isPanning) {
                 this.isPanning = true;
                 this.hasMoved = true;
@@ -85,6 +133,11 @@ export class InputHandler {
                 this.canvas.style.cursor = 'grabbing';
                 this.onCameraChange();
             }
+        } else if (this.isSelecting) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = Math.floor((event.clientX - rect.left + this.cameraX) / this.cellSize);
+            const y = Math.floor((event.clientY - rect.top + this.cameraY) / this.cellSize);
+            this.selectionEnd = { x, y };
         } else if (this.isPanning) {
             this.cameraX -= dx;
             this.cameraY -= dy;
@@ -101,8 +154,19 @@ export class InputHandler {
                 this.lastToggledIndex = -1;
                 this.toggleCell(event.clientX, event.clientY);
             }
+            if (this.isSelecting) {
+                this.onSelectionComplete?.(this.selectionStart, this.selectionEnd);
+            }
+            if (this.isDraggingSelection) {
+                if (this.hasMoved) {
+                    this.onDragSelection?.(this.dragOffset.x, this.dragOffset.y, true);
+                }
+                this.dragOffset = { x: 0, y: 0 };
+            }
             this.isMouseDown = false;
             this.isPanning = false;
+            this.isSelecting = false;
+            this.isDraggingSelection = false;
             this.hasMoved = false;
             this.canvas.style.cursor = 'crosshair';
         } else if (event.button === 2 || event.button === 1) {
@@ -120,8 +184,22 @@ export class InputHandler {
 
     private handleTouchStart(event: TouchEvent): void {
         if (event.touches.length === 1) {
-            this.isMouseDown = true;
-            this.hasMoved = false;
+            const rect = this.canvas.getBoundingClientRect();
+            const x = Math.floor((event.touches[0].clientX - rect.left + this.cameraX) / this.cellSize);
+            const y = Math.floor((event.touches[0].clientY - rect.top + this.cameraY) / this.cellSize);
+
+            if (this.isSelectionMode) {
+                this.isSelecting = true;
+                this.selectionStart = { x, y };
+                this.selectionEnd = { x, y };
+            } else if (this.isPointInSelection(x, y)) {
+                this.isDraggingSelection = true;
+                this.dragStart = { x, y };
+                this.hasMoved = false;
+            } else {
+                this.isMouseDown = true;
+                this.hasMoved = false;
+            }
             this.lastMouseX = event.touches[0].clientX;
             this.lastMouseY = event.touches[0].clientY;
         } else if (event.touches.length === 2) {
@@ -138,19 +216,36 @@ export class InputHandler {
 
     private handleTouchMove(event: TouchEvent): void {
         this.mouseMoved = true;
-        if (event.touches.length === 1 && this.isMouseDown) {
+        if (event.touches.length === 1) {
             const dx = event.touches[0].clientX - this.lastMouseX;
             const dy = event.touches[0].clientY - this.lastMouseY;
+            const rect = this.canvas.getBoundingClientRect();
+            const worldX = Math.floor((event.touches[0].clientX - rect.left + this.cameraX) / this.cellSize);
+            const worldY = Math.floor((event.touches[0].clientY - rect.top + this.cameraY) / this.cellSize);
 
-            if (Math.abs(dx) > 2 || Math.abs(dy) > 2 || this.isPanning) {
-                this.isPanning = true;
-                this.hasMoved = true;
-                this.cameraX -= dx;
-                this.cameraY -= dy;
-                this.lastMouseX = event.touches[0].clientX;
-                this.lastMouseY = event.touches[0].clientY;
-                this.onCameraChange();
+            if (this.isDraggingSelection) {
+                const worldDx = worldX - this.dragStart.x;
+                const worldDy = worldY - this.dragStart.y;
+                if (worldDx !== 0 || worldDy !== 0) {
+                    this.hasMoved = true;
+                    this.dragOffset.x += worldDx;
+                    this.dragOffset.y += worldDy;
+                    this.onDragSelection?.(this.dragOffset.x, this.dragOffset.y, false);
+                    this.dragStart = { x: worldX, y: worldY };
+                }
+            } else if (this.isSelecting) {
+                this.selectionEnd = { x: worldX, y: worldY };
+            } else if (this.isMouseDown) {
+                if (Math.abs(dx) > 2 || Math.abs(dy) > 2 || this.isPanning) {
+                    this.isPanning = true;
+                    this.hasMoved = true;
+                    this.cameraX -= dx;
+                    this.cameraY -= dy;
+                    this.onCameraChange();
+                }
             }
+            this.lastMouseX = event.touches[0].clientX;
+            this.lastMouseY = event.touches[0].clientY;
         } else if (event.touches.length === 2 && this.isPanning) {
             const touch1 = event.touches[0];
             const touch2 = event.touches[1];
@@ -182,8 +277,19 @@ export class InputHandler {
             const touch = event.changedTouches[0];
             this.toggleCell(touch.clientX, touch.clientY);
         }
+        if (this.isSelecting) {
+            this.onSelectionComplete?.(this.selectionStart, this.selectionEnd);
+        }
+        if (this.isDraggingSelection) {
+            if (this.hasMoved) {
+                this.onDragSelection?.(this.dragOffset.x, this.dragOffset.y, true);
+            }
+            this.dragOffset = { x: 0, y: 0 };
+        }
         this.isMouseDown = false;
         this.isPanning = false;
+        this.isSelecting = false;
+        this.isDraggingSelection = false;
         this.hasMoved = false;
         this.lastTouchDistance = 0;
         event.preventDefault();
@@ -210,5 +316,18 @@ export class InputHandler {
         
         this.cameraX = worldX * this.cellSize - mouseX;
         this.cameraY = worldY * this.cellSize - mouseY;
+    }
+
+    private isPointInSelection(x: number, y: number): boolean {
+        const xMin = Math.min(this.selectionStart.x, this.selectionEnd.x);
+        const xMax = Math.max(this.selectionStart.x, this.selectionEnd.x);
+        const yMin = Math.min(this.selectionStart.y, this.selectionEnd.y);
+        const yMax = Math.max(this.selectionStart.y, this.selectionEnd.y);
+
+        const isInRect = x >= xMin && x <= xMax && y >= yMin && y <= yMax && (xMin !== xMax || yMin !== yMax);
+        if (!isInRect) return false;
+
+        // Only allow dragging if the clicked cell is alive
+        return this.engine.grid[this.engine.index(x, y)] === 1;
     }
 }

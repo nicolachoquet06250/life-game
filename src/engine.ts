@@ -102,9 +102,10 @@ export class GameEngine {
         this.grid[i] = this.grid[i] === 1 ? 0 : 1
     }
 
-    applyPattern(x: number, y: number, pattern: number[][]): void {
+    applyPattern(x: number, y: number, pattern: number[][], overwrite: boolean = true): void {
         for (let py = 0; py < pattern.length; py++) {
             for (let px = 0; px < pattern[py].length; px++) {
+                if (!overwrite && pattern[py][px] === 0) continue
                 const nx = (x + px + this.cols) % this.cols
                 const ny = (y + py + this.rows) % this.rows
                 this.grid[this.index(nx, ny)] = pattern[py][px]
@@ -142,6 +143,7 @@ export class GameEngine {
     }
 
     rotatePattern(pattern: number[][]): number[][] {
+        if (pattern.length === 0 || pattern[0].length === 0) return [];
         const rows = pattern.length;
         const cols = pattern[0].length;
         const newPattern: number[][] = Array.from({ length: cols }, () => new Array(rows).fill(0));
@@ -160,5 +162,51 @@ export class GameEngine {
 
     mirrorVertical(pattern: number[][]): number[][] {
         return [...pattern].reverse();
+    }
+
+    copyPattern(x1: number, y1: number, x2: number, y2: number): number[][] {
+        const startX = Math.min(x1, x2);
+        const startY = Math.min(y1, y2);
+        const endX = Math.max(x1, x2);
+        const endY = Math.max(y1, y2);
+
+        const width = endX - startX + 1;
+        const height = endY - startY + 1;
+
+        if (width <= 0 || height <= 0) return [];
+
+        const pattern: number[][] = [];
+        for (let y = 0; y < height; y++) {
+            const row: number[] = [];
+            for (let x = 0; x < width; x++) {
+                const nx = (startX + x + this.cols) % this.cols;
+                const ny = (startY + y + this.rows) % this.rows;
+                row.push(this.grid[this.index(nx, ny)]);
+            }
+            pattern.push(row);
+        }
+        return pattern;
+    }
+
+    clearArea(x1: number, y1: number, x2: number, y2: number, onlyPattern?: number[][]): void {
+        const startX = Math.min(x1, x2);
+        const startY = Math.min(y1, y2);
+        const endX = Math.max(x1, x2);
+        const endY = Math.max(y1, y2);
+
+        for (let y = startY; y <= endY; y++) {
+            for (let x = startX; x <= endX; x++) {
+                if (onlyPattern) {
+                    const py = y - startY;
+                    const px = x - startX;
+                    if (py >= 0 && py < onlyPattern.length && px >= 0 && px < onlyPattern[py].length) {
+                        if (onlyPattern[py][px] === 0) continue; // Don't clear if it wasn't alive in the pattern
+                    }
+                }
+                const nx = (x + this.cols) % this.cols;
+                const ny = (y + this.rows) % this.rows;
+                this.grid[this.index(nx, ny)] = 0;
+            }
+        }
     }
 }

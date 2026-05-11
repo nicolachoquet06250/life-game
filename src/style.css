@@ -12,9 +12,23 @@ body, html {
 }
 
 #sidebar {
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, right 0.3s ease;
   display: flex;
   flex-direction: column;
+}
+
+#sidebar.visible {
+  /* Pour desktop */
+  transform: translateX(0);
+}
+
+#sidebar:not(.visible) {
+  /* Pour desktop */
+  transform: translateX(100%);
+}
+
+#select-mode-btn {
+  display: none !important;
 }
 
 #sidebar-tabs::-webkit-scrollbar {
@@ -39,7 +53,7 @@ body, html {
   transition: right 0.3s ease;
 }
 
-#sidebar:not(.hidden) + #app {
+#sidebar.visible + #app {
   right: 240px;
 }
 
@@ -61,11 +75,15 @@ body, html {
     right: 0 !important;
     border-left: none !important;
     border-top: 1px solid #333 !important;
-    transform: translateY(0);
+    transform: translateY(100%) !important;
   }
 
-  #sidebar.hidden {
-    transform: translateY(100%);
+  #sidebar.visible {
+    transform: translateY(0) !important;
+  }
+
+  #sidebar:not(.visible) {
+    transform: translateY(100%) !important;
   }
 
   #sidebar-switch {
@@ -91,6 +109,70 @@ body, html {
   
   #controls.no-sidebar {
     bottom: 20px !important;
+  }
+
+  #transform-container {
+    grid-template-columns: repeat(4, 1fr) !important;
+    padding-right: 10px !important;
+  }
+  
+  #transform-container button, .action-button {
+    padding: 10px 5px !important;
+    font-size: 16px !important;
+  }
+
+  #sidebar h2, #sidebar p {
+    display: none !important;
+  }
+
+  #select-mode-btn {
+    display: block !important;
+  }
+
+  #sidebar {
+    padding-top: 10px !important;
+  }
+  
+  #sidebar-tabs {
+    flex-shrink: 0 !important;
+  }
+
+  #sidebar-content {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    gap: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  #sidebar-content > div {
+    display: none !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+
+  .pattern-item {
+    min-width: 100px !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .pattern-item canvas {
+    max-height: 50px !important;
+    max-width: 80px !important;
+    width: auto !important;
+  }
+
+  .pattern-item div {
+    font-size: 10px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    width: 100% !important;
   }
 }
 

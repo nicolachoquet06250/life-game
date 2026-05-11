@@ -49,11 +49,11 @@ new class {
             },
             onColorChange: (color) => {
                 this.renderer.aliveColor = color;
-                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
             },
             onGridToggle: (show) => {
                 this.renderer.showGrid = show;
-                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
             },
             onBlurChange: (blur) => {
                 this.renderer.motionBlur = blur;
@@ -73,7 +73,7 @@ new class {
                 this.input.cameraY = worldCenterY * size - centerY;
 
                 this.checkAndExpandGrid();
-                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
             },
             onToricToggle: (isToric) => {
                 this.engine.isToric = isToric;
@@ -82,13 +82,24 @@ new class {
             onImport: (json) => this.importGrid(json),
             onRotatePattern: () => this.rotateSelectedPattern(),
             onMirrorHorizontal: () => this.mirrorSelectedPatternHorizontal(),
-            onMirrorVertical: () => this.mirrorSelectedPatternVertical()
+            onMirrorVertical: () => this.mirrorSelectedPatternVertical(),
+            onCopy: () => this.copySelection(),
+            onCut: () => this.cutSelection(),
+            onPaste: () => this.pasteSelection(),
+            onDuplicate: () => this.duplicateSelection(),
+            onDelete: () => this.deleteSelection(),
+            onSelectionModeToggle: (isSelectionMode) => {
+                this.input.isSelectionMode = isSelectionMode;
+            }
         });
 
         this.input = new InputHandler(canvas, this.engine, this.renderer, {
             onCameraChange: () => this.checkAndExpandGrid(),
-            onToggleCell: (x, y) => this.handleToggleCell(x, y)
-        });
+            onToggleCell: (x: number, y: number) => this.handleToggleCell(x, y),
+            onSelectionComplete: (start: {x: number, y: number}, end: {x: number, y: number}) => this.handleSelectionComplete(start, end),
+            onDragSelection: (dx: number, dy: number, isFinished: boolean) => this.handleDragSelection(dx, dy, isFinished),
+            onDelete: () => this.deleteSelection()
+        } as any);
 
         this.appElement.appendChild(canvas);
         
@@ -165,7 +176,7 @@ new class {
         this.status = 'Normal';
         this.ui.resetStats();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, !this.isCustomMode);
-        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
     }
 
     handleToggleCell(x: number, y: number) {
@@ -178,12 +189,28 @@ new class {
         } else {
             this.engine.toggleCell(x, y);
         }
-        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
     }
 
     handleKeydown(event: KeyboardEvent): void {
         if (event.code === 'Space') {
             this.toggleRunning();
+        }
+        if (event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey)) {
+            this.copySelection();
+        }
+        if (event.key.toLowerCase() === 'x' && (event.ctrlKey || event.metaKey)) {
+            this.cutSelection();
+        }
+        if (event.key.toLowerCase() === 'v' && (event.ctrlKey || event.metaKey)) {
+            this.pasteSelection();
+        }
+        if (event.key.toLowerCase() === 'd' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            this.duplicateSelection();
+        }
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+            this.deleteSelection();
         }
         if (event.key.toLowerCase() === 'r') {
             if (this.input.selectedPattern) {
@@ -218,12 +245,122 @@ new class {
         }
     }
 
+    handleSelectionComplete(start: {x: number, y: number}, end: {x: number, y: number}) {
+        const x1 = Math.min(start.x, end.x);
+        const y1 = Math.min(start.y, end.y);
+        const x2 = Math.max(start.x, end.x);
+        const y2 = Math.max(start.y, end.y);
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let found = false;
+
+        for (let y = y1; y <= y2; y++) {
+            for (let x = x1; x <= x2; x++) {
+                if (this.engine.grid[this.engine.index(x, y)] === 1) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                    found = true;
+                }
+            }
+        }
+
+        if (found) {
+            this.input.selectionStart = { x: minX, y: minY };
+            this.input.selectionEnd = { x: maxX, y: maxY };
+        } else {
+            // No living cells found, clear selection
+            this.input.selectionStart = { x: 0, y: 0 };
+            this.input.selectionEnd = { x: 0, y: 0 };
+        }
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+    }
+
+    handleDragSelection(dx: number, dy: number, isFinished: boolean) {
+        if (!isFinished) {
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+            return;
+        }
+
+        const x1 = Math.min(this.input.selectionStart.x, this.input.selectionEnd.x);
+        const y1 = Math.min(this.input.selectionStart.y, this.input.selectionEnd.y);
+        const x2 = Math.max(this.input.selectionStart.x, this.input.selectionEnd.x);
+        const y2 = Math.max(this.input.selectionStart.y, this.input.selectionEnd.y);
+
+        const pattern = this.engine.copyPattern(x1, y1, x2, y2);
+        this.engine.clearArea(x1, y1, x2, y2, pattern);
+        
+        this.input.selectionStart.x += dx;
+        this.input.selectionStart.y += dy;
+        this.input.selectionEnd.x += dx;
+        this.input.selectionEnd.y += dy;
+
+        const nx1 = Math.min(this.input.selectionStart.x, this.input.selectionEnd.x);
+        const ny1 = Math.min(this.input.selectionStart.y, this.input.selectionEnd.y);
+
+        this.engine.applyPattern(nx1, ny1, pattern, false);
+        this.hashHistory = [];
+        this.status = 'Normal';
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+    }
+
+    copySelection() {
+        if (this.input.isSelecting || (this.input.selectionStart.x === this.input.selectionEnd.x && this.input.selectionStart.y === this.input.selectionEnd.y)) {
+            // If currently selecting, we might wait for mouseUp, 
+            // but usually we want to copy what's currently defined by start/end
+        }
+        const pattern = this.engine.copyPattern(
+            this.input.selectionStart.x, this.input.selectionStart.y,
+            this.input.selectionEnd.x, this.input.selectionEnd.y
+        );
+        if (pattern.length > 0) {
+            this.input.clipboard = pattern;
+            console.log('Copié !');
+        }
+    }
+
+    cutSelection() {
+        this.copySelection();
+        this.deleteSelection();
+    }
+
+    deleteSelection() {
+        this.engine.clearArea(
+            this.input.selectionStart.x, this.input.selectionStart.y,
+            this.input.selectionEnd.x, this.input.selectionEnd.y
+        );
+        this.hashHistory = [];
+        this.status = 'Normal';
+        this.renderer.draw(
+            this.engine, 
+            this.input.cellSize, 
+            this.input.cameraX, 
+            this.input.cameraY,
+            this.input.isSelecting || (this.input.selectionStart.x !== this.input.selectionEnd.x || this.input.selectionStart.y !== this.input.selectionEnd.y) 
+                ? { start: this.input.selectionStart, end: this.input.selectionEnd } 
+                : undefined
+        );
+    }
+
+    pasteSelection() {
+        if (this.input.clipboard) {
+            this.input.selectedPattern = this.input.clipboard;
+            this.input.mouseMoved = false; // Show preview at center
+        }
+    }
+
+    duplicateSelection() {
+        this.copySelection();
+        this.pasteSelection();
+    }
+
     resize() {
         const width = this.appElement.clientWidth;
         const height = this.appElement.clientHeight;
         this.renderer.setSize(width, height);
         this.checkAndExpandGrid();
-        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
     }
 
     checkAndExpandGrid() {
@@ -251,7 +388,7 @@ new class {
             this.input.cameraX += addLeft * cellSize;
             this.input.cameraY += addTop * cellSize;
         }
-        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+        this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
     }
 
     exportGrid() {
@@ -272,12 +409,23 @@ new class {
             this.hashHistory = [];
             this.status = 'Normal';
             this.ui.resetStats();
-            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
             console.log('Grille importée avec succès');
         } catch (e) {
             console.error('Erreur lors de l\'importation:', e);
             alert('Fichier d\'importation invalide');
         }
+    }
+
+    getSelection() {
+        if (this.input.isSelecting || (this.input.selectionStart.x !== this.input.selectionEnd.x || this.input.selectionStart.y !== this.input.selectionEnd.y)) {
+            return { 
+                start: this.input.selectionStart, 
+                end: this.input.selectionEnd,
+                offset: this.input.isDraggingSelection ? this.input.dragOffset : undefined
+            };
+        }
+        return undefined;
     }
 
     loop(timestamp: number) {
@@ -302,7 +450,7 @@ new class {
             }
 
             this.checkAndExpandGrid();
-            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
             
             const stats = this.engine.getStats();
             this.ui.updateStats(stats.population, this.generation, stats.density, this.status);
@@ -310,7 +458,7 @@ new class {
             this.lastTick = timestamp;
         } else if (!this.running) {
              // In custom mode or paused, we still want to see the expand effects if we move
-             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
              
              if (this.input.selectedPattern) {
                  let mouseX, mouseY;
@@ -330,6 +478,10 @@ new class {
                      mouseY -= patternHeight / 2;
                  }
                  this.renderer.drawPatternPreview(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, mouseX, mouseY, this.input.selectedPattern);
+             }
+
+             if (this.input.isSelecting) {
+                 this.renderer.drawSelection(this.input.cellSize, this.input.cameraX, this.input.cameraY, this.input.selectionStart, this.input.selectionEnd);
              }
 
              const stats = this.engine.getStats();

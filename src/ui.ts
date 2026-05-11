@@ -20,6 +20,12 @@ export class UI {
     onRotatePattern?: () => void;
     onMirrorHorizontal?: () => void;
     onMirrorVertical?: () => void;
+    onCopy?: () => void;
+    onCut?: () => void;
+    onPaste?: () => void;
+    onDuplicate?: () => void;
+    onDelete?: () => void;
+    onSelectionModeToggle?: (isSelectionMode: boolean) => void;
     
     private menuEngine?: GameEngine;
     private menuRenderer?: Renderer;
@@ -52,7 +58,13 @@ export class UI {
             onImport: (json: string) => void,
             onRotatePattern?: () => void,
             onMirrorHorizontal?: () => void,
-            onMirrorVertical?: () => void
+            onMirrorVertical?: () => void,
+            onCopy?: () => void,
+            onCut?: () => void,
+            onPaste?: () => void,
+            onDuplicate?: () => void,
+            onDelete?: () => void,
+            onSelectionModeToggle?: (isSelectionMode: boolean) => void
         }
     ) {
         this.app = app;
@@ -72,6 +84,12 @@ export class UI {
         this.onRotatePattern = callbacks.onRotatePattern;
         this.onMirrorHorizontal = callbacks.onMirrorHorizontal;
         this.onMirrorVertical = callbacks.onMirrorVertical;
+        this.onCopy = (callbacks as any).onCopy;
+        this.onCut = (callbacks as any).onCut;
+        this.onPaste = (callbacks as any).onPaste;
+        this.onDuplicate = (callbacks as any).onDuplicate;
+        this.onDelete = (callbacks as any).onDelete;
+        this.onSelectionModeToggle = (callbacks as any).onSelectionModeToggle;
     }
 
     createMenuOverlay(): void {
@@ -404,7 +422,7 @@ export class UI {
 
         const sidebar = document.createElement('div')
         sidebar.id = 'sidebar'
-        sidebar.classList.add('visible')
+        // On ne met pas 'visible' tout de suite pour permettre l'animation de slide-up en mobile
         Object.assign(sidebar.style, {
             position: 'fixed',
             right: '0',
@@ -439,9 +457,25 @@ export class UI {
             padding: '5px'
         });
         closeBtn.addEventListener('click', () => {
-            sidebar.remove();
-            if (controls) {
-                controls.classList.add('no-sidebar');
+            sidebar.classList.remove('visible');
+            const onTransitionEnd = (e: TransitionEvent) => {
+                if (e.propertyName === 'transform') {
+                    sidebar.remove();
+                    if (controls) {
+                        controls.classList.add('no-sidebar');
+                    }
+                    sidebar.removeEventListener('transitionend', onTransitionEnd);
+                }
+            };
+            sidebar.addEventListener('transitionend', onTransitionEnd);
+            
+            // Sécurité si pas de transition (desktop par exemple si on change le style)
+            const isMobile = window.innerWidth <= 768;
+            if (!isMobile) {
+                sidebar.remove();
+                if (controls) {
+                    controls.classList.add('no-sidebar');
+                }
             }
         });
         sidebar.appendChild(closeBtn);
@@ -456,11 +490,12 @@ export class UI {
         sidebar.appendChild(sidebarTitle);
 
         const transformContainer = document.createElement('div');
+        transformContainer.id = 'transform-container';
         Object.assign(transformContainer.style, {
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
+            gridTemplateColumns: 'repeat(4, 1fr)',
             gap: '5px',
-            marginBottom: '15px',
+            marginBottom: '10px',
             paddingRight: '20px'
         });
 
@@ -474,7 +509,26 @@ export class UI {
         mirrorVBtn.innerHTML = '↕️';
         mirrorVBtn.title = 'Miroir V (V)';
 
-        [rotateBtn, mirrorHBtn, mirrorVBtn].forEach(btn => {
+        const copyBtn = document.createElement('button');
+        copyBtn.innerHTML = '📋';
+        copyBtn.title = 'Copier (Ctrl+C)';
+        const cutBtn = document.createElement('button');
+        cutBtn.innerHTML = '✂️';
+        cutBtn.title = 'Couper (Ctrl+X)';
+        const pasteBtn = document.createElement('button');
+        pasteBtn.innerHTML = '📥';
+        pasteBtn.title = 'Coller (Ctrl+V)';
+        const duplicateBtn = document.createElement('button');
+        duplicateBtn.innerHTML = '👯';
+        duplicateBtn.title = 'Dupliquer (Ctrl+D)';
+
+        const selectModeBtn = document.createElement('button');
+        selectModeBtn.id = 'select-mode-btn';
+        selectModeBtn.innerHTML = '🎯';
+        selectModeBtn.title = 'Mode Sélection';
+
+        [rotateBtn, mirrorHBtn, mirrorVBtn, copyBtn, cutBtn, pasteBtn, duplicateBtn, selectModeBtn].forEach(btn => {
+            btn.classList.add('action-button');
             Object.assign(btn.style, {
                 padding: '8px',
                 background: '#333',
@@ -489,6 +543,18 @@ export class UI {
         rotateBtn.onclick = () => this.onRotatePattern?.();
         mirrorHBtn.onclick = () => this.onMirrorHorizontal?.();
         mirrorVBtn.onclick = () => this.onMirrorVertical?.();
+        copyBtn.onclick = () => this.onCopy?.();
+        cutBtn.onclick = () => this.onCut?.();
+        pasteBtn.onclick = () => this.onPaste?.();
+        duplicateBtn.onclick = () => this.onDuplicate?.();
+
+        let isSelectionMode = false;
+        selectModeBtn.onclick = () => {
+            isSelectionMode = !isSelectionMode;
+            selectModeBtn.style.background = isSelectionMode ? '#00ff88' : '#333';
+            selectModeBtn.style.color = isSelectionMode ? '#000' : '#fff';
+            this.onSelectionModeToggle?.(isSelectionMode);
+        };
 
         sidebar.appendChild(transformContainer);
 
@@ -509,7 +575,7 @@ export class UI {
         sidebar.appendChild(contentContainer);
 
         const instruction = document.createElement('p')
-        instruction.textContent = 'Cliquez sur un pattern puis sur la carte pour le placer.'
+        instruction.textContent = 'Cliquez pour dessiner. Shift+Drag ou bouton 🎯 pour sélectionner.'
         Object.assign(instruction.style, {
             fontSize: '12px',
             marginBottom: '10px',
@@ -534,7 +600,7 @@ export class UI {
             });
 
             const categoryContent = document.createElement('div');
-            categoryContent.style.display = 'none';
+            categoryContent.style.setProperty('display', 'none', 'important');
 
             tab.addEventListener('click', () => {
                 if (activeTab) {
@@ -542,9 +608,10 @@ export class UI {
                     activeTab.style.background = 'transparent';
                 }
                 const contents = contentContainer.querySelectorAll(':scope > div');
-                contents.forEach(c => (c as HTMLElement).style.display = 'none');
+                contents.forEach(c => (c as HTMLElement).style.setProperty('display', 'none', 'important'));
 
-                categoryContent.style.display = 'block';
+                const isMobile = window.innerWidth <= 768;
+                categoryContent.style.setProperty('display', isMobile ? 'flex' : 'block', 'important');
                 tab.style.borderBottomColor = '#00ff88';
                 tab.style.background = 'rgba(255, 255, 255, 0.05)';
                 activeTab = tab;
@@ -554,6 +621,7 @@ export class UI {
 
             Object.entries(patterns).forEach(([name, pattern]) => {
                 const item = document.createElement('div')
+                item.classList.add('pattern-item')
                 
                 const preview = this.createPatternPreview(pattern)
                 item.appendChild(preview)
@@ -600,6 +668,11 @@ export class UI {
         })
 
         document.body.insertBefore(sidebar, this.app)
+
+        // Déclencher l'animation d'entrée
+        requestAnimationFrame(() => {
+            sidebar.classList.add('visible');
+        });
     }
 
     updateRunningStatus(running: boolean, isCustomMode: boolean = true): void {
