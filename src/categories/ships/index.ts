@@ -5,9 +5,12 @@ import * as hwss from './hwss';
 
 export const label = 'Vaisseaux'
 
-export const objects = {
-    [glider.name]: glider.object,
-    [lwss.name]: lwss.object,
-    [mwss.name]: mwss.object,
-    [hwss.name]: hwss.object,
-}
+export const objects = [
+    glider,
+    lwss,
+    mwss,
+    hwss
+].reduce((r, c) => ({
+    ...r,
+    [c.name]: c.object
+}), {});

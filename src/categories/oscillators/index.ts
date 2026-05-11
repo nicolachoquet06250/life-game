@@ -5,9 +5,12 @@ import * as toad from './toad';
 
 export const label = 'Oscillateurs';
 
-export const objects = {
-    [blinker.name]: blinker.object,
-    [beacon.name]: beacon.object,
-    [pulsar.name]: pulsar.object,
-    [toad.name]: toad.object,
-};
+export const objects = [
+    blinker,
+    beacon,
+    pulsar,
+    toad
+].reduce((r, c) => ({
+    ...r,
+    [c.name]: c.object
+}), {});

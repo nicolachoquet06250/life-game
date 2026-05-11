@@ -3,7 +3,10 @@ import * as gliderProducingSwitchEngine from './glider-producing-switch-engine';
 
 export const label = 'Puffers';
 
-export const objects = {
-    [blockLayingSwitchEngine.name]: blockLayingSwitchEngine.object,
-    [gliderProducingSwitchEngine.name]: gliderProducingSwitchEngine.object
-};
+export const objects = [
+    blockLayingSwitchEngine,
+    gliderProducingSwitchEngine
+].reduce((r, c) => ({
+    ...r,
+    [c.name]: c.object
+}), {});
