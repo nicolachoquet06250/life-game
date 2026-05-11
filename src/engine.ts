@@ -31,27 +31,6 @@ export class GameEngine {
         }
     }
 
-    resize(width: number, height: number, cellSize: number, isRunning: boolean): void {
-        const prevGrid = this.grid
-        const prevCols = this.cols
-        const prevRows = this.rows
-
-        const size = this.calculGrid(width, height, cellSize);
-
-        if (prevGrid.length === 0 && isRunning) {
-            this.grid = new Uint8Array(new Array(size).map(() => Math.random() > 0.75 ? 1 : 0));
-            // for (let i = 0; i < size; i++) {
-            //     this.grid[i] = Math.random() > 0.75 ? 1 : 0
-            // }
-        } else if (prevGrid.length > 0) {
-            for (let y = 0; y < Math.min(this.rows, prevRows); y++) {
-                for (let x = 0; x < Math.min(this.cols, prevCols); x++) {
-                    this.grid[y * this.cols + x] = prevGrid[y * prevCols + x]
-                }
-            }
-        }
-    }
-
     countNeighbors(x: number, y: number): number {
         let count = 0
         for (let dy = -1; dy <= 1; dy++) {

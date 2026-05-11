@@ -8,7 +8,7 @@ import { TICK_RATE, INITIAL_CELL_SIZE } from './constants'
 
 registerSW({ immediate: true })
 
-class App {
+new class {
     engine: GameEngine;
     renderer: Renderer;
     ui: UI;
@@ -215,5 +215,3 @@ class App {
         requestAnimationFrame((t) => this.loop(t));
     }
 }
-
-new App();
