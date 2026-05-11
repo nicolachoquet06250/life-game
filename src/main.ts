@@ -34,8 +34,9 @@ new class {
         this.engine = new GameEngine();
         this.renderer = new Renderer(canvas);
         this.ui = new UI(this.appElement, {
-            onStartAuto: () => this.startAutoMode(),
-            onStartCustom: () => this.startCustomMode(),
+            onStartAuto: (birth, survival) => this.startAutoMode(birth, survival),
+            onStartCustom: (birth, survival) => this.startCustomMode(birth, survival),
+            onStartMultiState: () => this.startMultiStateMode(),
             onToggleRunning: () => this.toggleRunning(),
             onReset: () => this.resetSimulation(),
             onNextStep: () => this.nextStep(),
@@ -93,8 +94,26 @@ new class {
             onPaste: () => this.pasteSelection(),
             onDuplicate: () => this.duplicateSelection(),
             onDelete: () => this.deleteSelection(),
+            onGoToMenu: () => {
+                this.running = false;
+                this.engine.resetSimulation();
+                this.generation = 0;
+                this.ui.resetStats();
+                this.ui.updateRunningStatus(this.running, this.isCustomMode);
+                this.ui.createMenuOverlay();
+                this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+            },
             onSelectionModeToggle: (isSelectionMode) => {
                 this.input.isSelectionMode = isSelectionMode;
+            },
+            onRulesChange: (birth, survival) => {
+                this.engine.birthRules = new Set(birth);
+                this.engine.survivalRules = new Set(survival);
+                // Si on est en pause, on redessine
+                if (!this.running) {
+                    this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
+                }
+                console.log(`Règles mises à jour : B${birth.join('')}/S${survival.join('')}`);
             }
         });
 
@@ -138,7 +157,10 @@ new class {
         this.appElement.style.background = '#050505';
     }
 
-    startAutoMode() {
+    startAutoMode(birth?: number[], survival?: number[]) {
+        this.engine.numStates = 2;
+        if (birth) this.engine.birthRules = new Set(birth);
+        if (survival) this.engine.survivalRules = new Set(survival);
         this.running = true;
         this.isCustomMode = false;
         this.generation = 0;
@@ -152,7 +174,10 @@ new class {
         this.updateNavigationUI();
     }
 
-    startCustomMode() {
+    startCustomMode(birth?: number[], survival?: number[]) {
+        this.engine.numStates = 2;
+        if (birth) this.engine.birthRules = new Set(birth);
+        if (survival) this.engine.survivalRules = new Set(survival);
         this.running = false;
         this.isCustomMode = true;
         this.generation = 0;
@@ -160,9 +185,39 @@ new class {
         this.status = 'Normal';
         this.ui.resetStats();
         this.ui.updateRunningStatus(this.running, this.isCustomMode);
-        this.ui.createSidebar();
+        this.ui.createSidebar(birth ? Array.from(birth) : undefined, survival ? Array.from(survival) : undefined);
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) {
+            // Force reflow
+            sidebar.offsetHeight;
+            sidebar.classList.add('visible');
+            const controls = document.getElementById('controls');
+            if (controls) {
+                controls.classList.remove('no-sidebar');
+            }
+        }
         this.resize();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, false);
+        this.updateNavigationUI();
+    }
+
+    startMultiStateMode() {
+        // Mode "Star Wars" (Generations)
+        // B2/S345/4 states
+        this.engine.numStates = 4;
+        this.engine.birthRules = new Set([2]);
+        this.engine.survivalRules = new Set([3, 4, 5]);
+        
+        this.running = true;
+        this.isCustomMode = false;
+        this.generation = 0;
+        this.hashHistory = [];
+        this.status = 'Multi-états';
+        this.ui.resetStats();
+        this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, true);
+        this.ui.updateRunningStatus(this.running, this.isCustomMode);
+        this.ui.onSelectPattern(null);
+        this.resize();
         this.updateNavigationUI();
     }
 

@@ -77,7 +77,9 @@ export class Renderer {
 
         for (let y = startY; y < endY; y++) {
             for (let x = startX; x < endX; x++) {
-                const isAlive = engine.grid[engine.index(x, y)] === 1;
+                const state = engine.grid[engine.index(x, y)];
+                const isAlive = state === 1;
+                const isDying = state > 1;
                 const isInSelection = selection && x >= selXMin && x <= selXMax && y >= selYMin && y <= selYMax;
                 
                 // Si la cellule est dans la sélection et qu'on est en train de déplacer (offset != 0),
@@ -86,13 +88,20 @@ export class Renderer {
                     continue;
                 }
 
-                if (isAlive) {
+                if (state > 0) {
                     if (isInSelection) {
                         // On applique une légère transparence pour les cellules sélectionnées
                         this.ctx.globalAlpha = 0.7;
                         this.ctx.fillStyle = this.aliveColor;
                     } else {
-                        this.ctx.fillStyle = this.aliveColor;
+                        if (isAlive) {
+                            this.ctx.fillStyle = this.aliveColor;
+                        } else if (isDying) {
+                            // Calcul d'une couleur plus sombre pour les cellules qui vieillissent
+                            // Plus l'état est élevé, plus c'est sombre
+                            const ratio = (state - 1) / (engine.numStates - 1);
+                            this.ctx.fillStyle = this.interpolateColor(this.aliveColor, this.theme.dead, ratio);
+                        }
                     }
 
                     this.ctx.fillRect(
@@ -150,6 +159,22 @@ export class Renderer {
             }
         }
         this.ctx.globalAlpha = 1.0;
+    }
+
+    private interpolateColor(color1: string, color2: string, ratio: number): string {
+        const r1 = parseInt(color1.substring(1, 3), 16);
+        const g1 = parseInt(color1.substring(3, 5), 16);
+        const b1 = parseInt(color1.substring(5, 7), 16);
+
+        const r2 = color2.startsWith('#') ? parseInt(color2.substring(1, 3), 16) : 0;
+        const g2 = color2.startsWith('#') ? parseInt(color2.substring(3, 5), 16) : 0;
+        const b2 = color2.startsWith('#') ? parseInt(color2.substring(5, 7), 16) : 0;
+
+        const r = Math.round(r1 + (r2 - r1) * ratio);
+        const g = Math.round(g1 + (g2 - g1) * ratio);
+        const b = Math.round(b1 + (b2 - b1) * ratio);
+
+        return `rgb(${r}, ${g}, ${b})`;
     }
 
     drawSelection(cellSize: number, cameraX: number, cameraY: number, start: {x: number, y: number}, end: {x: number, y: number}, offset?: {x: number, y: number}): void {

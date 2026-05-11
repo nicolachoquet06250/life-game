@@ -4,8 +4,9 @@ import { Renderer } from "./renderer";
 
 export class UI {
     app: HTMLDivElement;
-    onStartAuto: () => void;
-    onStartCustom: () => void;
+    onStartAuto: (birth?: number[], survival?: number[]) => void;
+    onStartCustom: (birth?: number[], survival?: number[]) => void;
+    onStartMultiState: () => void;
     onToggleRunning: () => void;
     onReset: () => void;
     onNextStep: () => void;
@@ -28,7 +29,9 @@ export class UI {
     onPaste?: () => void;
     onDuplicate?: () => void;
     onDelete?: () => void;
+    onGoToMenu: () => void;
     onSelectionModeToggle?: (isSelectionMode: boolean) => void;
+    onRulesChange?: (birth: number[], survival: number[]) => void;
     
     private menuEngine?: GameEngine;
     private menuRenderer?: Renderer;
@@ -50,8 +53,9 @@ export class UI {
     constructor(
         app: HTMLDivElement,
         callbacks: {
-            onStartAuto: () => void,
-            onStartCustom: () => void,
+            onStartAuto: (birth?: number[], survival?: number[]) => void,
+            onStartCustom: (birth?: number[], survival?: number[]) => void,
+            onStartMultiState: () => void,
             onToggleRunning: () => void,
             onReset: () => void,
             onNextStep: () => void,
@@ -74,12 +78,19 @@ export class UI {
             onPaste?: () => void,
             onDuplicate?: () => void,
             onDelete?: () => void,
-            onSelectionModeToggle?: (isSelectionMode: boolean) => void
+            onGoToMenu: () => void,
+            onSelectionModeToggle?: (isSelectionMode: boolean) => void,
+            onRulesChange?: (birth: number[], survival: number[]) => void
         }
     ) {
         this.app = app;
-        this.onStartAuto = callbacks.onStartAuto;
-        this.onStartCustom = callbacks.onStartCustom;
+        this.onStartAuto = (birth, survival) => {
+            callbacks.onStartAuto(birth, survival);
+        };
+        this.onStartCustom = (birth, survival) => {
+            callbacks.onStartCustom(birth, survival);
+        };
+        this.onStartMultiState = callbacks.onStartMultiState;
         this.onToggleRunning = callbacks.onToggleRunning;
         this.onReset = callbacks.onReset;
         this.onNextStep = callbacks.onNextStep;
@@ -105,12 +116,14 @@ export class UI {
         this.onRotatePattern = callbacks.onRotatePattern;
         this.onMirrorHorizontal = callbacks.onMirrorHorizontal;
         this.onMirrorVertical = callbacks.onMirrorVertical;
-        this.onCopy = (callbacks as any).onCopy;
-        this.onCut = (callbacks as any).onCut;
-        this.onPaste = (callbacks as any).onPaste;
-        this.onDuplicate = (callbacks as any).onDuplicate;
-        this.onDelete = (callbacks as any).onDelete;
-        this.onSelectionModeToggle = (callbacks as any).onSelectionModeToggle;
+        this.onCopy = callbacks.onCopy;
+        this.onCut = callbacks.onCut;
+        this.onPaste = callbacks.onPaste;
+        this.onDuplicate = callbacks.onDuplicate;
+        this.onDelete = callbacks.onDelete;
+        this.onGoToMenu = callbacks.onGoToMenu;
+        this.onSelectionModeToggle = callbacks.onSelectionModeToggle;
+        this.onRulesChange = callbacks.onRulesChange;
     }
 
     createMenuOverlay(): void {
@@ -186,8 +199,50 @@ export class UI {
         })
         rulesContainer.appendChild(rulesTitle)
 
-        const rulesList = document.createElement('ul')
-        Object.assign(rulesList.style, {
+        const tabsContainer = document.createElement('div')
+        tabsContainer.id = 'rules-tabs'
+        Object.assign(tabsContainer.style, {
+            display: 'flex',
+            gap: '10px',
+            marginBottom: '20px',
+            position: 'relative',
+            zIndex: '1',
+            justifyContent: 'center',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            paddingBottom: '10px'
+        })
+        rulesContainer.appendChild(tabsContainer)
+
+        const classicTabBtn = document.createElement('button')
+        classicTabBtn.textContent = 'Classique'
+        const multiTabBtn = document.createElement('button')
+        multiTabBtn.textContent = 'Multi-états'
+
+        const tabButtonStyle = {
+            background: 'none',
+            border: 'none',
+            color: '#ccc',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            borderRadius: '6px'
+        }
+
+        Object.assign(classicTabBtn.style, tabButtonStyle, {
+            color: '#00ff88',
+            backgroundColor: 'rgba(0, 255, 136, 0.1)'
+        })
+        Object.assign(multiTabBtn.style, tabButtonStyle)
+
+        tabsContainer.appendChild(classicTabBtn)
+        tabsContainer.appendChild(multiTabBtn)
+
+        const classicRulesList = document.createElement('ul')
+        const multiRulesList = document.createElement('ul')
+
+        const listStyle = {
             listStyleType: 'none',
             padding: '0',
             margin: '0',
@@ -195,23 +250,69 @@ export class UI {
             flexDirection: 'column',
             gap: '10px',
             position: 'relative',
-            zIndex: '1'
+            zIndex: '1',
+            transition: 'all 0.3s ease'
+        }
+
+        Object.assign(classicRulesList.style, listStyle)
+        Object.assign(multiRulesList.style, listStyle, {
+            display: 'none',
+            opacity: '0'
         })
 
-        const rules = [
+        const classicRules = [
             'Une cellule vivante avec moins de deux voisins vivants meurt (sous-population).',
             'Une cellule vivante avec deux ou trois voisins vivants survit.',
             'Une cellule vivante avec plus de trois voisins vivants meurt (surpopulation).',
             'Une cellule morte avec exactement trois voisins vivants devient vivante (reproduction).'
         ]
 
-        rules.forEach(ruleText => {
+        const multiRules = [
+            'Une cellule morte avec exactement deux voisins vivants devient vivante (état 1).',
+            'Une cellule vivante (état 1) survit si elle a 3, 4 ou 5 voisins vivants.',
+            'Sinon, elle commence à vieillir (passe à l\'état 2, puis 3).',
+            'Après l\'état 3, la cellule meurt et redevient vide (état 0).'
+        ]
+
+        classicRules.forEach(ruleText => {
             const li = document.createElement('li')
             li.textContent = ruleText
-            rulesList.appendChild(li)
+            classicRulesList.appendChild(li)
         })
 
-        rulesContainer.appendChild(rulesList)
+        multiRules.forEach(ruleText => {
+            const li = document.createElement('li')
+            li.textContent = ruleText
+            multiRulesList.appendChild(li)
+        })
+
+        rulesContainer.appendChild(classicRulesList)
+        rulesContainer.appendChild(multiRulesList)
+
+        classicTabBtn.onclick = () => {
+            classicTabBtn.style.color = '#00ff88'
+            classicTabBtn.style.backgroundColor = 'rgba(0, 255, 136, 0.1)'
+            multiTabBtn.style.color = '#ccc'
+            multiTabBtn.style.backgroundColor = 'transparent'
+            
+            classicRulesList.style.display = 'flex'
+            setTimeout(() => classicRulesList.style.opacity = '1', 10)
+            multiRulesList.style.display = 'none'
+            multiRulesList.style.opacity = '0'
+        }
+
+        multiTabBtn.onclick = () => {
+            multiTabBtn.style.color = '#00ff88'
+            multiTabBtn.style.backgroundColor = 'rgba(0, 255, 136, 0.1)'
+            classicTabBtn.style.color = '#ccc'
+            classicTabBtn.style.backgroundColor = 'transparent'
+            
+            multiRulesList.style.display = 'flex'
+            setTimeout(() => multiRulesList.style.opacity = '1', 10)
+            classicRulesList.style.display = 'none'
+            classicRulesList.style.opacity = '0'
+        }
+
         overlay.appendChild(rulesContainer)
 
         const btnContainer = document.createElement('div')
@@ -225,18 +326,180 @@ export class UI {
             justifyContent: 'center'
         })
 
-        const autoBtn = this.createButton('Mode Automatique', '#007bff', () => {
+        const autoDropdown = document.createElement('div')
+        autoDropdown.id = 'auto-dropdown'
+        Object.assign(autoDropdown.style, {
+            position: 'relative',
+            display: 'inline-block'
+        })
+
+        const dropdownContent = document.createElement('div')
+        dropdownContent.id = 'auto-dropdown-content'
+        Object.assign(dropdownContent.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'absolute',
+            bottom: 'calc(100% + 15px)',
+            left: '50%',
+            transform: 'translateX(-50%) translateY(10px)',
+            width: '220px',
+            backgroundColor: 'rgba(20, 20, 20, 0.95)',
+            backdropFilter: 'blur(15px)',
+            borderRadius: '12px',
+            boxShadow: '0 15px 35px rgba(0,0,0,0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+            zIndex: '101',
+            overflow: 'visible',
+            opacity: '0',
+            visibility: 'hidden',
+            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            pointerEvents: 'none'
+        })
+
+        // Petit triangle (caret)
+        const caret = document.createElement('div')
+        Object.assign(caret.style, {
+            position: 'absolute',
+            bottom: '-8px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '0',
+            height: '0',
+            borderLeft: '8px solid transparent',
+            borderRight: '8px solid transparent',
+            borderTop: '8px solid rgba(255, 255, 255, 0.1)',
+            zIndex: '102'
+        })
+        const caretInner = document.createElement('div')
+        Object.assign(caretInner.style, {
+            position: 'absolute',
+            bottom: '1px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '0',
+            height: '0',
+            borderLeft: '7px solid transparent',
+            borderRight: '7px solid transparent',
+            borderTop: '7px solid rgba(20, 20, 20, 0.95)',
+        })
+        caret.appendChild(caretInner)
+        dropdownContent.appendChild(caret)
+
+        const autoMainBtn = this.createButton('Mode Automatique', '#007bff', (e) => {
+            e.stopPropagation()
+            const isVisible = dropdownContent.style.visibility === 'visible'
+            
+            // Icon animation
+            const arrow = autoMainBtn.querySelector('.dropdown-arrow') as HTMLElement
+            
+            if (isVisible) {
+                dropdownContent.style.opacity = '0'
+                dropdownContent.style.visibility = 'hidden'
+                dropdownContent.style.transform = 'translateX(-50%) translateY(10px)'
+                dropdownContent.style.pointerEvents = 'none'
+                if (arrow) arrow.style.transform = 'rotate(0deg)'
+            } else {
+                dropdownContent.style.opacity = '1'
+                dropdownContent.style.visibility = 'visible'
+                dropdownContent.style.transform = 'translateX(-50%) translateY(0)'
+                dropdownContent.style.pointerEvents = 'auto'
+                if (arrow) arrow.style.transform = 'rotate(180deg)'
+            }
+        })
+        
+        const arrow = document.createElement('span')
+        arrow.className = 'dropdown-arrow'
+        arrow.innerHTML = '▾'
+        Object.assign(arrow.style, {
+            display: 'inline-block',
+            marginLeft: '8px',
+            transition: 'transform 0.3s ease',
+            fontSize: '18px'
+        })
+        autoMainBtn.appendChild(arrow)
+
+        // Close dropdown when clicking outside
+        const closeDropdown = (e: MouseEvent) => {
+            if (!autoDropdown.contains(e.target as Node)) {
+                dropdownContent.style.opacity = '0'
+                dropdownContent.style.visibility = 'hidden'
+                dropdownContent.style.transform = 'translateX(-50%) translateY(10px)'
+                dropdownContent.style.pointerEvents = 'none'
+                const arrow = autoMainBtn.querySelector('.dropdown-arrow') as HTMLElement
+                if (arrow) arrow.style.transform = 'rotate(0deg)'
+            }
+        }
+        document.addEventListener('click', closeDropdown)
+
+        const classicBtn = this.createButton('', 'transparent', () => {
+            document.removeEventListener('click', closeDropdown)
             this.stopMenuBackgroundSimulation()
             overlay.remove()
             this.onStartAuto()
         })
+        classicBtn.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 600; font-size: 15px;">Mode classique</span>
+                <span style="font-size: 11px; opacity: 0.6; font-weight: normal;">Règles standards (B3/S23)</span>
+            </div>
+        `
+        Object.assign(classicBtn.style, {
+            width: '100%',
+            textAlign: 'left',
+            borderRadius: '0',
+            padding: '14px 20px',
+            fontSize: '15px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+        })
+        classicBtn.addEventListener('mouseenter', () => {
+            classicBtn.style.backgroundColor = 'rgba(0, 123, 255, 0.15)'
+            classicBtn.style.color = '#007bff'
+        })
+        classicBtn.addEventListener('mouseleave', () => {
+            classicBtn.style.backgroundColor = 'transparent'
+            classicBtn.style.color = 'white'
+        })
+
+        const multiStateBtn = this.createButton('', 'transparent', () => {
+            document.removeEventListener('click', closeDropdown)
+            this.stopMenuBackgroundSimulation()
+            overlay.remove()
+            this.onStartMultiState()
+        })
+        multiStateBtn.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 600; font-size: 15px;">Mode Multi-états</span>
+                <span style="font-size: 11px; opacity: 0.6; font-weight: normal;">Cellules avec cycle de vie étendu</span>
+            </div>
+        `
+        Object.assign(multiStateBtn.style, {
+            width: '100%',
+            textAlign: 'left',
+            borderRadius: '0',
+            padding: '14px 20px',
+            fontSize: '15px'
+        })
+        multiStateBtn.addEventListener('mouseenter', () => {
+            multiStateBtn.style.backgroundColor = 'rgba(253, 126, 20, 0.15)'
+            multiStateBtn.style.color = '#fd7e14'
+        })
+        multiStateBtn.addEventListener('mouseleave', () => {
+            multiStateBtn.style.backgroundColor = 'transparent'
+            multiStateBtn.style.color = 'white'
+        })
+
+        dropdownContent.appendChild(classicBtn)
+        dropdownContent.appendChild(multiStateBtn)
+        autoDropdown.appendChild(dropdownContent)
+        autoDropdown.appendChild(autoMainBtn)
+
         const customBtn = this.createButton('Mode Personnalisé', '#28a745', () => {
+            document.removeEventListener('click', closeDropdown)
             this.stopMenuBackgroundSimulation()
             overlay.remove()
             this.onStartCustom()
         })
 
-        btnContainer.appendChild(autoBtn)
+        btnContainer.appendChild(autoDropdown)
         btnContainer.appendChild(customBtn)
         overlay.appendChild(btnContainer)
         document.body.appendChild(overlay)
@@ -301,7 +564,7 @@ export class UI {
         this.menuRenderer = undefined
     }
 
-    private createButton(text: string, background: string, onClick: () => void): HTMLButtonElement {
+    private createButton(text: string, background: string, onClick: (e: MouseEvent) => void): HTMLButtonElement {
         const btn = document.createElement('button')
         btn.textContent = text
         Object.assign(btn.style, {
@@ -311,9 +574,10 @@ export class UI {
             background: background,
             color: 'white',
             border: 'none',
-            borderRadius: '8px'
+            borderRadius: '8px',
+            transition: 'background-color 0.2s'
         })
-        btn.addEventListener('click', onClick);
+        btn.addEventListener('click', (e) => onClick(e));
         return btn
     }
 
@@ -353,10 +617,20 @@ export class UI {
         switchBtn.addEventListener('click', () => {
             const sidebar = document.getElementById('sidebar')
             if (sidebar) {
-                sidebar.remove()
-                controls.classList.add('no-sidebar')
+                sidebar.classList.toggle('visible')
+                if (sidebar.classList.contains('visible')) {
+                    controls.classList.remove('no-sidebar')
+                } else {
+                    controls.classList.add('no-sidebar')
+                }
             } else {
                 this.createSidebar()
+                const newSidebar = document.getElementById('sidebar')
+                if (newSidebar) {
+                    // Force reflow
+                    newSidebar.offsetHeight
+                    newSidebar.classList.add('visible')
+                }
             }
         });
 
@@ -432,8 +706,23 @@ export class UI {
             fontSize: '16px'
         })
         resetBtn.addEventListener('click', this.onReset)
+        
+        const menuBtn = document.createElement('button')
+        menuBtn.textContent = '🏠'
+        menuBtn.title = 'Menu Principal'
+        Object.assign(menuBtn.style, {
+            padding: '8px 12px',
+            background: '#444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '16px'
+        })
+        menuBtn.addEventListener('click', this.onGoToMenu)
 
         controls.appendChild(switchBtn)
+        controls.appendChild(menuBtn)
         controls.appendChild(resetBtn)
         controls.appendChild(playbackGroup)
         
@@ -473,7 +762,167 @@ export class UI {
         return canvas
     }
 
-    createSidebar(): void {
+    private createRulesEditor(birthRules?: number[], survivalRules?: number[]): HTMLDivElement {
+        const presets: Record<string, { birth: number[], survival: number[] }> = {
+            'Classique (B3/S23)': { birth: [3], survival: [2, 3] },
+            'HighLife (B36/S23)': { birth: [3, 6], survival: [2, 3] },
+            'Seeds (B2/S)': { birth: [2], survival: [] },
+            'Day & Night (B3678/S34678)': { birth: [3, 6, 7, 8], survival: [3, 4, 6, 7, 8] },
+            'Damo (B35678/S5678)': { birth: [3, 5, 6, 7, 8], survival: [5, 6, 7, 8] }
+        }
+
+        const editorContainer = document.createElement('div')
+        editorContainer.id = 'rules-editor'
+        Object.assign(editorContainer.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            padding: '15px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            marginBottom: '20px',
+            marginRight: '20px',
+            boxSizing: 'border-box'
+        })
+
+        const editorTitle = document.createElement('h3')
+        editorTitle.textContent = 'Règles (B/S)'
+        Object.assign(editorTitle.style, { 
+            margin: '0 0 10px 0', 
+            color: '#00ff88',
+            fontSize: '16px'
+        })
+        editorContainer.appendChild(editorTitle)
+
+        // Preset selector
+        const presetSelect = document.createElement('select')
+        Object.assign(presetSelect.style, {
+            padding: '5px',
+            borderRadius: '4px',
+            border: '1px solid #444',
+            background: '#222',
+            color: 'white',
+            width: '100%',
+            marginBottom: '10px',
+            fontSize: '12px'
+        })
+        
+        const defaultOpt = document.createElement('option')
+        defaultOpt.value = ''
+        defaultOpt.textContent = '-- Présélections --'
+        presetSelect.appendChild(defaultOpt)
+
+        Object.keys(presets).forEach(name => {
+            const opt = document.createElement('option')
+            opt.value = name
+            opt.textContent = name
+            if (name === 'Classique (B3/S23)') {
+                opt.selected = true;
+            }
+            presetSelect.appendChild(opt)
+        })
+        editorContainer.appendChild(presetSelect)
+
+        const createRuleRow = (label: string, activeValues: Set<number>, onUpdate: () => void) => {
+            const row = document.createElement('div')
+            Object.assign(row.style, {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+                marginBottom: '5px'
+            })
+            const rowLabel = document.createElement('span')
+            rowLabel.textContent = label
+            rowLabel.style.fontSize = '12px'
+            rowLabel.style.color = '#aaa'
+            row.appendChild(rowLabel)
+
+            const btnGrid = document.createElement('div')
+            Object.assign(btnGrid.style, {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, 1fr)',
+                gap: '4px'
+            })
+
+            const buttons: HTMLButtonElement[] = []
+            for (let i = 0; i <= 8; i++) {
+                const btn = document.createElement('button')
+                btn.textContent = i.toString()
+                Object.assign(btn.style, {
+                    width: '100%',
+                    height: '24px',
+                    borderRadius: '3px',
+                    border: '1px solid #444',
+                    background: activeValues.has(i) ? '#00ff88' : '#333',
+                    color: activeValues.has(i) ? 'black' : 'white',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    transition: 'all 0.2s',
+                    padding: '0'
+                })
+                btn.onclick = () => {
+                    if (activeValues.has(i)) {
+                        activeValues.delete(i)
+                    } else {
+                        activeValues.add(i)
+                    }
+                    presetSelect.value = ''
+                    onUpdate()
+                    updateButtonStyles()
+                }
+                buttons.push(btn)
+                btnGrid.appendChild(btn)
+            }
+            row.appendChild(btnGrid)
+            
+            const updateButtonStyles = () => {
+                buttons.forEach((btn, i) => {
+                    const active = activeValues.has(i)
+                    btn.style.background = active ? '#00ff88' : '#333'
+                    btn.style.color = active ? 'black' : 'white'
+                })
+            }
+
+            return { row, buttons, updateButtonStyles }
+        }
+
+        const currentBirth = new Set(birthRules || [3])
+        const currentSurvival = new Set(survivalRules || [2, 3])
+        
+        const notifyUpdate = () => {
+            if (this.onRulesChange) {
+                this.onRulesChange(Array.from(currentBirth), Array.from(currentSurvival));
+            }
+        }
+        
+        // Initial call to ensure rules are synced
+        notifyUpdate();
+
+        const birthRow = createRuleRow('Naissance (B):', currentBirth, notifyUpdate)
+        const survivalRow = createRuleRow('Survie (S):', currentSurvival, notifyUpdate)
+
+        editorContainer.appendChild(birthRow.row)
+        editorContainer.appendChild(survivalRow.row)
+
+        presetSelect.onchange = () => {
+            const preset = presets[presetSelect.value]
+            if (preset) {
+                currentBirth.clear()
+                preset.birth.forEach(n => currentBirth.add(n))
+                currentSurvival.clear()
+                preset.survival.forEach(n => currentSurvival.add(n))
+
+                birthRow.updateButtonStyles()
+                survivalRow.updateButtonStyles()
+                notifyUpdate()
+            }
+        }
+
+        return editorContainer
+    }
+
+    createSidebar(birthRules?: number[], survivalRules?: number[]): void {
         const existing = document.getElementById('sidebar');
         if (existing) return;
 
@@ -485,13 +934,13 @@ export class UI {
             right: '0',
             top: '0',
             bottom: '0',
-            width: '240px',
+            width: '260px',
             background: '#1a1a1a',
             borderLeft: '1px solid #333',
             color: 'white',
             padding: '20px 0 20px 20px',
             zIndex: '15',
-            overflowY: 'hidden'
+            overflowY: 'auto'
         })
 
         const controls = document.getElementById('controls');
@@ -514,21 +963,12 @@ export class UI {
             padding: '5px'
         });
         closeBtn.addEventListener('click', () => {
-            sidebar.classList.remove('visible');
-            const onTransitionEnd = (e: TransitionEvent) => {
-                if (e.propertyName === 'transform') {
-                    sidebar.remove();
-                    if (controls) {
-                        controls.classList.add('no-sidebar');
-                    }
-                    sidebar.removeEventListener('transitionend', onTransitionEnd);
+            if (sidebar.classList.contains('visible')) {
+                sidebar.classList.remove('visible');
+                if (controls) {
+                    controls.classList.add('no-sidebar');
                 }
-            };
-            sidebar.addEventListener('transitionend', onTransitionEnd);
-            
-            // Sécurité si pas de transition (desktop par exemple si on change le style)
-            const isMobile = window.innerWidth <= 768;
-            if (!isMobile) {
+            } else {
                 sidebar.remove();
                 if (controls) {
                     controls.classList.add('no-sidebar');
@@ -538,13 +978,26 @@ export class UI {
         sidebar.appendChild(closeBtn);
         
         const sidebarTitle = document.createElement('h2');
-        sidebarTitle.textContent = 'Patterns';
+        sidebarTitle.textContent = 'Configuration';
         Object.assign(sidebarTitle.style, {
             margin: '0 0 15px 0',
             fontSize: '18px',
             color: '#00ff88'
         });
         sidebar.appendChild(sidebarTitle);
+
+        const rulesEditor = this.createRulesEditor(birthRules, survivalRules);
+        sidebar.appendChild(rulesEditor);
+
+
+        const actionsTitle = document.createElement('h2');
+        actionsTitle.textContent = 'Actions';
+        Object.assign(actionsTitle.style, {
+            margin: '20px 0 10px 0',
+            fontSize: '18px',
+            color: '#00ff88'
+        });
+        sidebar.appendChild(actionsTitle);
 
         const transformContainer = document.createElement('div');
         transformContainer.id = 'transform-container';
@@ -642,6 +1095,25 @@ export class UI {
 
         sidebar.appendChild(transformContainer);
 
+        const instruction = document.createElement('p')
+        instruction.textContent = 'Cliquez pour dessiner. Shift+Drag ou bouton 🎯 pour sélectionner.'
+        Object.assign(instruction.style, {
+            fontSize: '12px',
+            marginBottom: '10px',
+            color: '#aaa',
+            paddingRight: '20px'
+        })
+        sidebar.appendChild(instruction)
+
+        const patternTitle = document.createElement('h2');
+        patternTitle.textContent = 'Patterns';
+        Object.assign(patternTitle.style, {
+            margin: '20px 0 10px 0',
+            fontSize: '18px',
+            color: '#00ff88'
+        });
+        sidebar.appendChild(patternTitle);
+
         const tabsContainer = document.createElement('div');
         tabsContainer.id = 'sidebar-tabs';
         Object.assign(tabsContainer.style, {
@@ -654,19 +1126,11 @@ export class UI {
         const contentContainer = document.createElement('div');
         contentContainer.id = 'sidebar-content';
         contentContainer.style.paddingRight = '20px';
+        contentContainer.style.minHeight = '120px'; // Hauteur minimum pour éviter l'écrasement sur mobile
+        contentContainer.style.flexShrink = '0';
 
         sidebar.appendChild(tabsContainer);
         sidebar.appendChild(contentContainer);
-
-        const instruction = document.createElement('p')
-        instruction.textContent = 'Cliquez pour dessiner. Shift+Drag ou bouton 🎯 pour sélectionner.'
-        Object.assign(instruction.style, {
-            fontSize: '12px',
-            marginBottom: '10px',
-            color: '#aaa',
-            paddingRight: '20px'
-        })
-        sidebar.insertBefore(instruction, tabsContainer)
 
         let activeTab: HTMLElement | null = null;
 
@@ -1158,7 +1622,8 @@ export class UI {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: '1001',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            paddingBottom: '5px'
         });
 
         let isOpen = false;

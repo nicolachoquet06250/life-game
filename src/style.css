@@ -68,7 +68,8 @@ body, html {
   
   #sidebar {
     width: 100% !important;
-    height: 300px !important;
+    height: auto !important;
+    max-height: 50vh !important;
     top: auto !important;
     bottom: 0 !important;
     left: 0 !important;
@@ -76,6 +77,8 @@ body, html {
     border-left: none !important;
     border-top: 1px solid #333 !important;
     transform: translateY(100%) !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   #sidebar.visible {
@@ -99,15 +102,26 @@ body, html {
   }
 
   #controls {
-    bottom: 320px !important;
+    bottom: 20px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: auto !important;
     padding: 5px !important;
     gap: 5px !important;
     display: flex !important;
+    transition: bottom 0.3s ease !important;
+  }
+
+  #sidebar.visible ~ #controls,
+  #sidebar.visible ~ #app #controls {
+    bottom: calc(50vh - 20px) !important;
   }
   
+  /* Fallback si controls n'est pas frère de sidebar mais dans app */
+  #sidebar.visible + #app #controls {
+     bottom: calc(50vh - 20px) !important;
+  }
+
   #controls.no-sidebar {
     bottom: 20px !important;
   }
@@ -122,7 +136,13 @@ body, html {
     font-size: 16px !important;
   }
 
-  #sidebar h2, #sidebar p {
+  #sidebar h2 {
+    margin: 10px 0 5px 0 !important;
+    font-size: 14px !important;
+    flex-shrink: 0 !important;
+  }
+
+  #sidebar p {
     display: none !important;
   }
 
@@ -145,6 +165,8 @@ body, html {
     overflow-y: hidden !important;
     gap: 10px !important;
     padding-bottom: 10px !important;
+    flex: 1 !important;
+    min-height: 120px !important;
   }
 
   #sidebar-content > div {

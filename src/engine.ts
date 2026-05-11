@@ -6,6 +6,10 @@ export class GameEngine {
     history: Uint8Array[] = []
     maxHistory: number = 100
 
+    public birthRules: Set<number> = new Set([3])
+    public survivalRules: Set<number> = new Set([2, 3])
+    public numStates: number = 2 // 2 pour le classique (0=mort, 1=vivant)
+
     isToric: boolean = true
 
     index(x: number, y: number): number {
@@ -25,6 +29,8 @@ export class GameEngine {
 
     resetSimulation() {
         this.history = []
+        this.grid.fill(0)
+        this.nextGrid.fill(0)
     }
 
     createGrid(width: number, height: number, cellSize: number, random: boolean = true): void {
@@ -52,7 +58,15 @@ export class GameEngine {
                     if (nx < 0 || nx >= this.cols || ny < 0 || ny >= this.rows) continue
                 }
                 
-                count += this.grid[this.index(nx, ny)]
+                // Dans les automates à plusieurs états (Generations), 
+                // seules les cellules à l'état 1 (vivantes) comptent comme voisines.
+                if (this.numStates === 2) {
+                    count += this.grid[this.index(nx, ny)]
+                } else {
+                    if (this.grid[this.index(nx, ny)] === 1) {
+                        count++
+                    }
+                }
             }
         }
         return count
@@ -61,7 +75,7 @@ export class GameEngine {
     getStats(): { population: number, density: number } {
         let population = 0
         for (let i = 0; i < this.grid.length; i++) {
-            if (this.grid[i] === 1) population++
+            if (this.grid[i] > 0) population++
         }
         const density = (population / this.grid.length) * 100
         return { population, density }
@@ -73,12 +87,39 @@ export class GameEngine {
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const i = this.index(x, y)
-                const alive = this.grid[i] === 1
+                const state = this.grid[i]
                 const neighbors = this.countNeighbors(x, y)
-                const nextState = alive
-                    ? neighbors === 2 || neighbors === 3 ? 1 : 0
-                    : neighbors === 3 ? 1 : 0
-                if (nextState !== this.grid[i]) {
+                let nextState = state
+
+                if (this.numStates === 2) {
+                    // Logique classique
+                    const alive = state === 1
+                    nextState = alive
+                        ? this.survivalRules.has(neighbors) ? 1 : 0
+                        : this.birthRules.has(neighbors) ? 1 : 0
+                } else {
+                    // Logique à plusieurs états (Type "Generations")
+                    // Une cellule à l'état 0 (morte) naît si elle a le bon nombre de voisins et passe à l'état 1
+                    // Une cellule à l'état 1 (vivante) survit si elle a le bon nombre de voisins, sinon elle commence à vieillir (état 2)
+                    // Une cellule à l'état > 0 et < numStates-1 vieillit (+1 à chaque génération)
+                    // Une cellule à l'état numStates-1 meurt (retourne à l'état 0)
+                    if (state === 0) {
+                        if (this.birthRules.has(neighbors)) {
+                            nextState = 1
+                        }
+                    } else if (state === 1) {
+                        if (!this.survivalRules.has(neighbors)) {
+                            nextState = 2
+                        }
+                    } else {
+                        nextState = state + 1
+                        if (nextState >= this.numStates) {
+                            nextState = 0
+                        }
+                    }
+                }
+
+                if (nextState !== state) {
                     changed = true
                 }
                 this.nextGrid[i] = nextState
@@ -94,12 +135,27 @@ export class GameEngine {
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 const i = this.index(x, y)
-                const alive = this.grid[i] === 1
+                const state = this.grid[i]
                 const neighbors = this.countNeighbors(x, y)
-                const nextState = alive
-                    ? neighbors === 2 || neighbors === 3 ? 1 : 0
-                    : neighbors === 3 ? 1 : 0
-                if (nextState !== this.grid[i]) {
+                let nextState = state
+
+                if (this.numStates === 2) {
+                    const alive = state === 1
+                    nextState = alive
+                        ? this.survivalRules.has(neighbors) ? 1 : 0
+                        : this.birthRules.has(neighbors) ? 1 : 0
+                } else {
+                    if (state === 0) {
+                        if (this.birthRules.has(neighbors)) nextState = 1
+                    } else if (state === 1) {
+                        if (!this.survivalRules.has(neighbors)) nextState = 2
+                    } else {
+                        nextState = state + 1
+                        if (nextState >= this.numStates) nextState = 0
+                    }
+                }
+
+                if (nextState !== state) {
                     return false
                 }
             }
