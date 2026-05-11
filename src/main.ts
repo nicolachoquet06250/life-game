@@ -308,12 +308,16 @@ new class {
     rotateSelection() {
         const selection = this.getSelection();
         if (selection) {
-            const pattern = this.engine.copyPattern(selection.x1, selection.y1, selection.x2, selection.y2);
-            this.engine.clearArea(selection.x1, selection.y1, selection.x2, selection.y2, pattern);
+            const x1 = selection.start.x;
+            const y1 = selection.start.y;
+            const x2 = selection.end.x;
+            const y2 = selection.end.y;
+            const pattern = this.engine.copyPattern(x1, y1, x2, y2);
+            this.engine.clearArea(x1, y1, x2, y2, pattern);
             const rotated = this.engine.rotatePattern(pattern);
-            this.engine.applyPattern(selection.x1, selection.y1, rotated, false);
-            this.input.selectionEnd.x = selection.x1 + rotated[0].length - 1;
-            this.input.selectionEnd.y = selection.y1 + rotated.length - 1;
+            this.engine.applyPattern(x1, y1, rotated, false);
+            this.input.selectionEnd.x = x1 + rotated[0].length - 1;
+            this.input.selectionEnd.y = y1 + rotated.length - 1;
             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
         }
     }
@@ -321,9 +325,13 @@ new class {
     mirrorSelectionHorizontal() {
         const selection = this.getSelection();
         if (selection) {
-            const pattern = this.engine.copyPattern(selection.x1, selection.y1, selection.x2, selection.y2);
+            const x1 = selection.start.x;
+            const y1 = selection.start.y;
+            const x2 = selection.end.x;
+            const y2 = selection.end.y;
+            const pattern = this.engine.copyPattern(x1, y1, x2, y2);
             const mirrored = this.engine.mirrorHorizontal(pattern);
-            this.engine.applyPattern(selection.x1, selection.y1, mirrored, true);
+            this.engine.applyPattern(x1, y1, mirrored, true);
             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
         }
     }
@@ -331,9 +339,13 @@ new class {
     mirrorSelectionVertical() {
         const selection = this.getSelection();
         if (selection) {
-            const pattern = this.engine.copyPattern(selection.x1, selection.y1, selection.x2, selection.y2);
+            const x1 = selection.start.x;
+            const y1 = selection.start.y;
+            const x2 = selection.end.x;
+            const y2 = selection.end.y;
+            const pattern = this.engine.copyPattern(x1, y1, x2, y2);
             const mirrored = this.engine.mirrorVertical(pattern);
-            this.engine.applyPattern(selection.x1, selection.y1, mirrored, true);
+            this.engine.applyPattern(x1, y1, mirrored, true);
             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY, this.getSelection());
         }
     }

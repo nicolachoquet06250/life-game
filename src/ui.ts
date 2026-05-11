@@ -696,7 +696,7 @@ export class UI {
                 const isMobile = window.innerWidth <= 768;
                 categoryContent.style.setProperty('display', isMobile ? 'flex' : 'grid', 'important');
                 if (!isMobile) {
-                    categoryContent.style.gridTemplateColumns = 'repeat(2, 1fr)';
+                    categoryContent.style.gridTemplateColumns = '1fr';
                     categoryContent.style.gap = '10px';
                 }
                 tab.style.borderBottomColor = '#00ff88';
