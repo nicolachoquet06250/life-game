@@ -15,6 +15,8 @@ export class UI {
     onBlurChange: (blur: number) => void;
     onCellSizeChange: (size: number) => void;
     onToricToggle: (isToric: boolean) => void;
+    onExport: () => void;
+    onImport: (json: string) => void;
     
     private menuEngine?: GameEngine;
     private menuRenderer?: Renderer;
@@ -26,6 +28,8 @@ export class UI {
     private currentBlur: number = 1.0;
     private currentShowGrid: boolean = false;
     private currentIsToric: boolean = true;
+    private populationHistory: number[] = [];
+    private chartCanvas?: HTMLCanvasElement;
 
     constructor(
         app: HTMLDivElement,
@@ -40,7 +44,9 @@ export class UI {
             onGridToggle: (show: boolean) => void,
             onBlurChange: (blur: number) => void,
             onCellSizeChange: (size: number) => void,
-            onToricToggle: (isToric: boolean) => void
+            onToricToggle: (isToric: boolean) => void,
+            onExport: () => void,
+            onImport: (json: string) => void
         }
     ) {
         this.app = app;
@@ -55,6 +61,8 @@ export class UI {
         this.onBlurChange = callbacks.onBlurChange;
         this.onCellSizeChange = callbacks.onCellSizeChange;
         this.onToricToggle = callbacks.onToricToggle;
+        this.onExport = callbacks.onExport;
+        this.onImport = callbacks.onImport;
     }
 
     createMenuOverlay(): void {
@@ -567,13 +575,73 @@ export class UI {
         }
     }
 
-    updateStats(population: number, generation: number, density: number): void {
+    resetStats(): void {
+        this.populationHistory = [];
+        if (this.chartCanvas) {
+            const ctx = this.chartCanvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, this.chartCanvas.width, this.chartCanvas.height);
+        }
+    }
+
+    updateStats(population: number, generation: number, density: number, status: string = 'Normal'): void {
         const popEl = document.getElementById('stat-population');
         const genEl = document.getElementById('stat-generation');
         const denEl = document.getElementById('stat-density');
+        const statusEl = document.getElementById('stat-status');
         if (popEl) popEl.textContent = population.toString();
         if (genEl) genEl.textContent = generation.toString();
         if (denEl) denEl.textContent = density.toFixed(2) + '%';
+        if (statusEl) {
+            statusEl.textContent = status;
+            statusEl.style.color = status === 'Normal' ? '#00ff88' : '#ffaa00';
+        }
+
+        // Update history
+        this.populationHistory.push(population);
+        if (this.populationHistory.length > 100) {
+            this.populationHistory.shift();
+        }
+        this.drawChart();
+    }
+
+    private drawChart(): void {
+        if (!this.chartCanvas) return;
+        const ctx = this.chartCanvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = this.chartCanvas.width;
+        const height = this.chartCanvas.height;
+        ctx.clearRect(0, 0, width, height);
+
+        if (this.populationHistory.length < 2) return;
+
+        const maxPop = Math.max(...this.populationHistory, 1);
+        const minPop = Math.min(...this.populationHistory);
+        const range = maxPop - minPop || 1;
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+
+        for (let i = 0; i < this.populationHistory.length; i++) {
+            const x = (i / (this.populationHistory.length - 1)) * width;
+            const y = height - ((this.populationHistory[i] - minPop) / range) * (height - 10) - 5;
+            
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+
+        // Fill area
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.1)';
+        ctx.fill();
     }
 
     createSettingsPanel(initialTickRate: number, initialCellSize: number): void {
@@ -632,8 +700,27 @@ export class UI {
             <div>Pop: <span id="stat-population" style="color: #00ff88">0</span></div>
             <div>Gén: <span id="stat-generation" style="color: #00ff88">0</span></div>
             <div style="grid-column: span 2">Densité: <span id="stat-density" style="color: #00ff88">0%</span></div>
+            <div>Etat: <span id="stat-status" style="color: #00ff88">Normal</span></div>
         `;
         panel.appendChild(statsContainer);
+
+        const chartContainer = document.createElement('div');
+        Object.assign(chartContainer.style, {
+            width: '100%',
+            height: '60px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '8px',
+            marginBottom: '5px',
+            overflow: 'hidden'
+        });
+        
+        this.chartCanvas = document.createElement('canvas');
+        this.chartCanvas.width = 210;
+        this.chartCanvas.height = 60;
+        this.chartCanvas.style.width = '100%';
+        this.chartCanvas.style.height = '100%';
+        chartContainer.appendChild(this.chartCanvas);
+        panel.appendChild(chartContainer);
 
         const createRange = (label: string, min: number, max: number, value: number, unit: string, onInput: (v: number) => void) => {
             const container = document.createElement('div');
@@ -779,6 +866,61 @@ export class UI {
             }
             this.onToricToggle(v);
         }));
+
+        // Export/Import Section
+        const ioContainer = document.createElement('div');
+        Object.assign(ioContainer.style, {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '10px',
+            marginTop: '10px'
+        });
+
+        const exportBtn = document.createElement('button');
+        exportBtn.textContent = 'Exporter';
+        Object.assign(exportBtn.style, {
+            padding: '8px',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: 'white',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '12px'
+        });
+        exportBtn.onclick = () => this.onExport();
+
+        const importBtn = document.createElement('button');
+        importBtn.textContent = 'Importer';
+        Object.assign(importBtn.style, {
+            padding: '8px',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: 'white',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '12px'
+        });
+        importBtn.onclick = () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (re) => {
+                        const content = re.target?.result as string;
+                        this.onImport(content);
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        };
+
+        ioContainer.appendChild(exportBtn);
+        ioContainer.appendChild(importBtn);
+        panel.appendChild(ioContainer);
 
         // Toggle Button
         const toggleBtn = document.createElement('button');

@@ -111,4 +111,33 @@ export class GameEngine {
             }
         }
     }
+
+    getHash(): string {
+        // Simple hash function for Uint8Array
+        let hash = 0;
+        for (let i = 0; i < this.grid.length; i++) {
+            if (this.grid[i] === 1) {
+                hash = ((hash << 5) - hash) + i;
+                hash |= 0; // Convert to 32bit integer
+            }
+        }
+        return hash.toString();
+    }
+
+    serialize(): string {
+        const data = {
+            cols: this.cols,
+            rows: this.rows,
+            grid: Array.from(this.grid)
+        }
+        return JSON.stringify(data)
+    }
+
+    deserialize(json: string): void {
+        const data = JSON.parse(json)
+        this.cols = data.cols
+        this.rows = data.rows
+        this.grid = new Uint8Array(data.grid)
+        this.nextGrid = new Uint8Array(this.grid.length)
+    }
 }

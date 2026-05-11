@@ -20,6 +20,8 @@ new class {
     lastTick = 0;
     generation = 0;
     tickInterval = 1000 / TICK_RATE;
+    hashHistory: string[] = [];
+    status: string = 'Normal';
 
     constructor() {
         const el = document.getElementById('app');
@@ -70,7 +72,9 @@ new class {
             },
             onToricToggle: (isToric) => {
                 this.engine.isToric = isToric;
-            }
+            },
+            onExport: () => this.exportGrid(),
+            onImport: (json) => this.importGrid(json)
         });
 
         this.input = new InputHandler(canvas, this.engine, this.renderer, {
@@ -113,6 +117,10 @@ new class {
     startAutoMode() {
         this.running = true;
         this.isCustomMode = false;
+        this.generation = 0;
+        this.hashHistory = [];
+        this.status = 'Normal';
+        this.ui.resetStats();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, true);
         this.ui.updateRunningStatus(this.running, this.isCustomMode);
         this.ui.onSelectPattern(null);
@@ -122,6 +130,10 @@ new class {
     startCustomMode() {
         this.running = false;
         this.isCustomMode = true;
+        this.generation = 0;
+        this.hashHistory = [];
+        this.status = 'Normal';
+        this.ui.resetStats();
         this.ui.updateRunningStatus(this.running, this.isCustomMode);
         this.ui.createSidebar();
         this.resize();
@@ -129,6 +141,10 @@ new class {
     }
 
     toggleRunning() {
+        if (!this.running) {
+            this.hashHistory = [];
+            this.status = 'Normal';
+        }
         this.running = !this.running;
         this.ui.updateRunningStatus(this.running, this.isCustomMode);
     }
@@ -137,11 +153,16 @@ new class {
         this.input.cameraX = 0;
         this.input.cameraY = 0;
         this.generation = 0;
+        this.hashHistory = [];
+        this.status = 'Normal';
+        this.ui.resetStats();
         this.engine.createGrid(this.appElement.clientWidth, this.appElement.clientHeight, this.input.cellSize, !this.isCustomMode);
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
     }
 
     handleToggleCell(x: number, y: number) {
+        this.hashHistory = [];
+        this.status = 'Normal';
         if (this.input.selectedPattern) {
             this.engine.applyPattern(x, y, this.input.selectedPattern);
         } else {
@@ -195,22 +216,65 @@ new class {
         this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
     }
 
+    exportGrid() {
+        const json = this.engine.serialize();
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `life-game-export-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    importGrid(json: string) {
+        try {
+            this.engine.deserialize(json);
+            this.generation = 0;
+            this.hashHistory = [];
+            this.status = 'Normal';
+            this.ui.resetStats();
+            this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
+            console.log('Grille importée avec succès');
+        } catch (e) {
+            console.error('Erreur lors de l\'importation:', e);
+            alert('Fichier d\'importation invalide');
+        }
+    }
+
     loop(timestamp: number) {
         if (this.running && timestamp - this.lastTick >= this.tickInterval) {
             this.engine.nextGeneration();
             this.generation++;
+            
+            const currentHash = this.engine.getHash();
+            const cycleIndex = this.hashHistory.indexOf(currentHash);
+            
+            if (cycleIndex !== -1) {
+                const cycleLength = this.hashHistory.length - cycleIndex;
+                this.status = cycleLength === 1 ? 'Stable' : `Cycle (${cycleLength})`;
+                this.running = false;
+                this.ui.updateRunningStatus(this.running, this.isCustomMode);
+            } else {
+                this.hashHistory.push(currentHash);
+                if (this.hashHistory.length > 1000) {
+                    this.hashHistory.shift();
+                }
+                this.status = 'Normal';
+            }
+
             this.checkAndExpandGrid();
             this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
             
             const stats = this.engine.getStats();
-            this.ui.updateStats(stats.population, this.generation, stats.density);
+            this.ui.updateStats(stats.population, this.generation, stats.density, this.status);
             
             this.lastTick = timestamp;
         } else if (!this.running) {
              // In custom mode or paused, we still want to see the expand effects if we move
              this.renderer.draw(this.engine, this.input.cellSize, this.input.cameraX, this.input.cameraY);
              const stats = this.engine.getStats();
-             this.ui.updateStats(stats.population, this.generation, stats.density);
+             this.ui.updateStats(stats.population, this.generation, stats.density, this.status);
         }
         requestAnimationFrame((t) => this.loop(t));
     }
