@@ -558,7 +558,7 @@ export class UI {
 
         const settingsToggle = document.getElementById('settings-toggle')
         if (settingsToggle) {
-            settingsToggle.style.display = isCustomMode ? 'none' : 'flex';
+            settingsToggle.style.display = 'flex';
         }
 
         const status = document.getElementById('status')
