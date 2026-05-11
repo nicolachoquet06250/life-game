@@ -10,14 +10,19 @@ export class GameEngine {
         return y * this.cols + x
     }
 
-    createGrid(width: number, height: number, cellSize: number, random: boolean = true): void {
+    calculGrid(width: number, height: number, cellSize: number) {
         this.cols = Math.floor(width / cellSize)
         this.rows = Math.floor(height / cellSize)
 
         const size = this.cols * this.rows
-
         this.grid = new Uint8Array(size)
         this.nextGrid = new Uint8Array(size)
+
+        return size;
+    }
+
+    createGrid(width: number, height: number, cellSize: number, random: boolean = true): void {
+        const size = this.calculGrid(width, height, cellSize);
 
         if (random) {
             for (let i = 0; i < size; i++) {
@@ -31,17 +36,13 @@ export class GameEngine {
         const prevCols = this.cols
         const prevRows = this.rows
 
-        this.cols = Math.floor(width / cellSize)
-        this.rows = Math.floor(height / cellSize)
-
-        const size = this.cols * this.rows
-        this.grid = new Uint8Array(size)
-        this.nextGrid = new Uint8Array(size)
+        const size = this.calculGrid(width, height, cellSize);
 
         if (prevGrid.length === 0 && isRunning) {
-            for (let i = 0; i < size; i++) {
-                this.grid[i] = Math.random() > 0.75 ? 1 : 0
-            }
+            this.grid = new Uint8Array(new Array(size).map(() => Math.random() > 0.75 ? 1 : 0));
+            // for (let i = 0; i < size; i++) {
+            //     this.grid[i] = Math.random() > 0.75 ? 1 : 0
+            // }
         } else if (prevGrid.length > 0) {
             for (let y = 0; y < Math.min(this.rows, prevRows); y++) {
                 for (let x = 0; x < Math.min(this.cols, prevCols); x++) {
